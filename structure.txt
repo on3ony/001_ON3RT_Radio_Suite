@@ -1,0 +1,103 @@
+Structure du dossier pour le volume Elements
+Le numéro de série du volume est 000000E1 30FD:42D6
+D:.
+¦   .gitignore
+¦   launcher.py
+¦   structure.txt
+¦   
++---apps
+¦   +---bandmap
+¦   +---cat_server
+¦   ¦   ¦   logger.py
+¦   ¦   ¦   main.py
+¦   ¦   ¦   radio_service.py
+¦   ¦   ¦   status.py
+¦   ¦   ¦   window.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           logger.cpython-313.pyc
+¦   ¦           main.cpython-313.pyc
+¦   ¦           radio_service.cpython-313.pyc
+¦   ¦           status.cpython-313.pyc
+¦   ¦           window.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---contest
+¦   +---dxcluster
+¦   +---logbook
+¦   +---propagation
+¦   +---qsl_manager
+¦   +---radio_control
+¦   +---scanner
+¦   +---settings
+¦   +---wsjtx_bridge
++---assets
+¦   +---icons
+¦   ¦       cat_server.png
+¦   ¦       
+¦   +---images
+¦   +---logos
+¦   ¦       app_icon.png
+¦   ¦       on3rt_logo.png
+¦   ¦       on3rt_logo1.png
+¦   ¦       on3rt_logo_compact.png
+¦   ¦       splash.png
+¦   ¦       
+¦   +---sounds
+¦   +---themes
+¦           on3rt_dark.qss
+¦           
++---data
+¦   +---adif
+¦   +---backups
+¦   +---config
+¦   +---database
+¦   +---logs
+¦   +---temp
++---docs
++---libraries
+¦   +---cat
+¦   ¦   ¦   cat_bridge.py
+¦   ¦   ¦   cat_controller.py
+¦   ¦   ¦   cat_engine.py
+¦   ¦   ¦   cat_model.py
+¦   ¦   ¦   cat_monitor.py
+¦   ¦   ¦   cat_server.py
+¦   ¦   ¦   civ_protocol.py
+¦   ¦   ¦   command_queue.py
+¦   ¦   ¦   constants.py
+¦   ¦   ¦   frequency.py
+¦   ¦   ¦   mode.py
+¦   ¦   ¦   parser.py
+¦   ¦   ¦   poller.py
+¦   ¦   ¦   ptt.py
+¦   ¦   ¦   serial_transport.py
+¦   ¦   ¦   vfo.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           cat_controller.cpython-313.pyc
+¦   ¦           cat_engine.cpython-313.pyc
+¦   ¦           civ_protocol.cpython-313.pyc
+¦   ¦           command_queue.cpython-313.pyc
+¦   ¦           constants.cpython-313.pyc
+¦   ¦           frequency.cpython-313.pyc
+¦   ¦           mode.cpython-313.pyc
+¦   ¦           parser.cpython-313.pyc
+¦   ¦           ptt.cpython-313.pyc
+¦   ¦           serial_transport.cpython-313.pyc
+¦   ¦           vfo.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---civ
+¦   +---common
+¦   +---database
+¦   +---network
+¦   +---serial
+¦   +---ui
+¦   +---utils
++---logs
+¦       cat_server.log
+¦       
++---tests
