@@ -4,6 +4,8 @@ Module Logbook
 Boîte de dialogue d'ajout / modification d'un QSO.
 """
 
+from datetime import datetime, timezone
+
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -128,6 +130,11 @@ class QSODialog(QDialog):
         layout.addRow(buttons)
 
     def _load_qso(self):
+
+        if not self.qso.qso_date:
+            now = datetime.now(timezone.utc)
+            self.qso.qso_date = now.strftime("%Y-%m-%d")
+            self.qso.time_on = now.strftime("%H:%M")
 
         self.callsign.setText(self.qso.callsign)
 
