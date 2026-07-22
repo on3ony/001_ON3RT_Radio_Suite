@@ -8,10 +8,13 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from apps.logbook.window import LogbookWindow
+from libraries.ui.theme import load_theme
 
 
 def main():
     app = QApplication(sys.argv)
+
+    load_theme(app)
 
     window = LogbookWindow()
     window.show()

@@ -45,28 +45,32 @@ class CATEngine:
 
     def read_frequency(self) -> int:
         response = self.transact(self.frequency.build_read_command())
-        return self.parser.parse(response)["decoded"]["frequency_hz"]
+        parsed = self.parser.parse(response)
+        return parsed.get("decoded", {}).get("frequency_hz", 0)
 
     def set_frequency(self, hz: int) -> None:
         self.transact(self.frequency.build_set_command(hz))
 
     def read_mode(self) -> str:
         response = self.transact(self.mode.build_read_command())
-        return self.parser.parse(response)["decoded"]["mode_name"]
+        parsed = self.parser.parse(response)
+        return parsed.get("decoded", {}).get("mode_name", "UNKNOWN")
 
     def set_mode(self, mode) -> None:
         self.transact(self.mode.build_set_command(mode))
 
     def read_ptt(self):
         response = self.transact(self.ptt.build_read_command())
-        return self.parser.parse(response)["decoded"]
+        parsed = self.parser.parse(response)
+        return parsed.get("decoded", {"ptt": False})
 
     def set_ptt(self, state: bool) -> None:
         self.transact(self.ptt.build_set_command(state))
 
     def read_vfo(self):
         response = self.transact(self.vfo.build_read_command())
-        return self.parser.parse(response)["decoded"]
+        parsed = self.parser.parse(response)
+        return parsed.get("decoded", {"vfo": None})
 
     def set_vfo(self, vfo) -> None:
         self.transact(self.vfo.build_set_command(vfo))

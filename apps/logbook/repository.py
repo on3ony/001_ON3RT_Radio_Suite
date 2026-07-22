@@ -74,6 +74,30 @@ class LogbookRepository:
 
         return cursor.lastrowid
 
+    def _row_to_qso(self, row: Row) -> QSO:
+        return QSO(
+            id=row["id"],
+            qso_date=row["qso_date"],
+            time_on=row["time_on"],
+            callsign=row["callsign"],
+            band=row["band"],
+            frequency=row["frequency"],
+            mode=row["mode"],
+            rst_sent=row["rst_sent"],
+            rst_recv=row["rst_recv"],
+            operator=row["operator"],
+            name=row["name"],
+            qth=row["qth"],
+            locator=row["locator"],
+            country=row["country"],
+            tx_power=row["tx_power"],
+            rig=row["rig"],
+            antenna=row["antenna"],
+            comment=row["comment"],
+            software=row["software"],
+            imported=bool(row["imported"]),
+        )
+
     def get_all(self) -> list[QSO]:
         cursor = self.conn.cursor()
 
@@ -81,13 +105,13 @@ class LogbookRepository:
             """
             SELECT *
             FROM qso
-            ORDER BY qso_date DESC,time_on DESC
+            ORDER BY qso_date DESC, time_on DESC
             """
         )
 
         rows = cursor.fetchall()
 
-        return [QSO(**dict(row)) for row in rows]
+        return [self._row_to_qso(row) for row in rows]
 
     def delete(self, qso_id: int):
         self.conn.execute(
