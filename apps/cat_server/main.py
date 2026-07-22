@@ -24,25 +24,29 @@ if str(PROJECT_ROOT) not in sys.path:
 from apps.cat_server.window import CATServerWindow
 
 
-def main():
+def main() -> int:
 
-    app = QApplication(sys.argv)
+    app = QApplication.instance()
+
+    if app is None:
+        app = QApplication(sys.argv)
 
     app.setApplicationName("ON3RT Radio Suite")
     app.setOrganizationName("ON3RT")
 
-    # Chargement du thème
     theme = PROJECT_ROOT / "assets" / "themes" / "on3rt_dark.qss"
 
-    if theme.exists():
-        with open(theme, "r", encoding="utf-8") as f:
-            app.setStyleSheet(f.read())
+    if theme.is_file():
+        try:
+            app.setStyleSheet(theme.read_text(encoding="utf-8"))
+        except Exception:
+            pass
 
     window = CATServerWindow()
     window.show()
 
-    sys.exit(app.exec())
+    return app.exec()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
