@@ -44,10 +44,12 @@ class RadioService(QObject):
 
             if not ok:
                 self.status.connected = False
-                self.error.emit("Impossible de se connecter")
+                self.status.last_error = "Impossible de se connecter"
+                self.error.emit(self.status.last_error)
                 return False
 
             self.status.connected = True
+            self.status.last_error = ""
 
             logger.separator()
             logger.connected(self.status.port)
@@ -55,7 +57,6 @@ class RadioService(QObject):
             self.connected.emit()
 
             self.timer.start()
-
             self.poll()
 
             return True
@@ -66,7 +67,6 @@ class RadioService(QObject):
             self.status.last_error = str(exc)
 
             logger.exception(exc)
-
             self.error.emit(str(exc))
 
             return False
@@ -80,7 +80,7 @@ class RadioService(QObject):
         except Exception:
             pass
 
-        self.status.reset()
+        self.status.connected = False
 
         logger.disconnected()
 
@@ -88,7 +88,7 @@ class RadioService(QObject):
 
     def poll(self):
 
-        if not self.controller.connected:
+        if not getattr(self.controller, "connected", False):
             return
 
         try:
@@ -99,22 +99,28 @@ class RadioService(QObject):
 
             changed = False
 
-            if freq != self.status.frequency:
+            if freq is not None and freq != self.status.frequency:
                 self.status.frequency = freq
                 logger.frequency(freq)
                 changed = True
 
-            if mode != self.status.mode:
+            if mode is not None and mode != self.status.mode:
                 self.status.mode = mode
                 logger.mode(mode)
                 changed = True
 
-            state = ptt.get("ptt", False)
+            if isinstance(ptt, dict):
+                state = ptt.get("ptt", False)
+            else:
+                state = bool(ptt)
 
             if state != self.status.ptt:
                 self.status.ptt = state
                 logger.ptt(state)
                 changed = True
+
+            self.status.connected = True
+            self.status.last_error = ""
 
             if changed:
                 self.updated.emit()
