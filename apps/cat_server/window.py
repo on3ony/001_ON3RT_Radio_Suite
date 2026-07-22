@@ -31,13 +31,12 @@ class CATServerWindow(QMainWindow):
         titre = QLabel("CAT SERVER")
         titre.setAlignment(Qt.AlignCenter)
         titre.setStyleSheet("font-size:24px;font-weight:bold;")
-
         layout.addWidget(titre)
 
         grille = QGridLayout()
 
         self.lbl_port = QLabel("Port : COM3")
-        self.lbl_status = QLabel("Etat : Déconnecté")
+        self.lbl_status = QLabel("État : Déconnecté")
         self.lbl_freq = QLabel("Fréquence : -----")
         self.lbl_mode = QLabel("Mode : -----")
         self.lbl_ptt = QLabel("PTT : OFF")
@@ -52,6 +51,7 @@ class CATServerWindow(QMainWindow):
 
         self.btn_connect = QPushButton("Connexion IC-7300")
         self.btn_disconnect = QPushButton("Déconnexion")
+        self.btn_disconnect.setEnabled(False)
 
         layout.addWidget(self.btn_connect)
         layout.addWidget(self.btn_disconnect)
@@ -68,16 +68,21 @@ class CATServerWindow(QMainWindow):
     def connect_radio(self):
         try:
             if self.controller.connect():
-                self.lbl_status.setText("Etat : Connecté")
+                self.lbl_status.setText("État : Connecté")
                 self.statusBar().showMessage("IC-7300 connecté")
+                self.btn_connect.setEnabled(False)
+                self.btn_disconnect.setEnabled(True)
                 self.timer.start()
+                self.refresh()
             else:
-                self.lbl_status.setText("Etat : Erreur de connexion")
+                self.lbl_status.setText("État : Erreur de connexion")
+
         except Exception as e:
-            self.lbl_status.setText("Etat : Erreur")
+            self.lbl_status.setText("État : Erreur")
             self.statusBar().showMessage(str(e))
 
     def disconnect_radio(self):
+
         self.timer.stop()
 
         try:
@@ -85,15 +90,19 @@ class CATServerWindow(QMainWindow):
         except Exception:
             pass
 
-        self.lbl_status.setText("Etat : Déconnecté")
+        self.lbl_status.setText("État : Déconnecté")
         self.lbl_freq.setText("Fréquence : -----")
         self.lbl_mode.setText("Mode : -----")
         self.lbl_ptt.setText("PTT : OFF")
 
+        self.btn_connect.setEnabled(True)
+        self.btn_disconnect.setEnabled(False)
+
         self.statusBar().showMessage("Déconnecté")
 
     def refresh(self):
-        if not self.controller.connected:
+
+        if not getattr(self.controller, "connected", False):
             return
 
         try:
@@ -101,10 +110,13 @@ class CATServerWindow(QMainWindow):
             mode = self.controller.read_mode()
             ptt = self.controller.read_ptt()
 
-            if freq:
-                self.lbl_freq.setText(f"Fréquence : {freq:,} Hz".replace(",", "."))
+            if freq is not None:
+                self.lbl_freq.setText(
+                    f"Fréquence : {freq:,} Hz".replace(",", ".")
+                )
 
-            self.lbl_mode.setText(f"Mode : {mode}")
+            if mode is not None:
+                self.lbl_mode.setText(f"Mode : {mode}")
 
             if isinstance(ptt, dict):
                 state = ptt.get("ptt", False)
