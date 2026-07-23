@@ -1,0 +1,116 @@
+"""
+apps/contest/window.py
+ON3RT Radio Suite - Contest Logbook V3
+"""
+
+from PyQt6.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QGroupBox,
+    QHeaderView
+)
+
+from apps.contest.database import ContestDatabase
+from apps.contest.menu import create_menu
+from apps.contest.toolbar import create_toolbar
+from apps.contest.qso_entry import QSOEntry
+from apps.contest.qso_table import QSOTable
+from apps.contest.statistics_panel import StatisticsPanel
+from apps.contest.resources import WINDOW_TITLE, ON3RT_DARK_THEME
+
+
+class ContestWindow(QMainWindow):
+
+    def __init__(self):
+        super().__init__()
+
+        self.db = ContestDatabase()
+
+        self.setWindowTitle(WINDOW_TITLE)
+        self.resize(1500, 900)
+
+        self.setStyleSheet(ON3RT_DARK_THEME)
+
+        self.build_ui()
+        self.refresh()
+
+    def build_ui(self):
+
+        create_menu(self)
+        create_toolbar(self)
+
+        central = QWidget()
+        self.setCentralWidget(central)
+
+        layout = QVBoxLayout(central)
+        layout.setSpacing(8)
+
+        entry_box = QGroupBox("Saisie rapide Contest")
+        entry_layout = QVBoxLayout(entry_box)
+
+        self.qso_entry = QSOEntry()
+        entry_layout.addWidget(self.qso_entry)
+
+        layout.addWidget(entry_box)
+
+        table_box = QGroupBox("Logbook Contest")
+        table_layout = QVBoxLayout(table_box)
+
+        self.qso_table = QSOTable()
+
+        header = self.qso_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setStretchLastSection(True)
+
+        table_layout.addWidget(self.qso_table)
+
+        layout.addWidget(table_box, 1)
+
+        stats_box = QGroupBox("Statistiques")
+        stats_layout = QVBoxLayout(stats_box)
+
+        self.statistics = StatisticsPanel()
+        stats_layout.addWidget(self.statistics)
+
+        layout.addWidget(stats_box)
+
+        self.qso_entry.qso_add_requested.connect(
+            self.add_qso
+        )
+
+        self.statusBar().showMessage(
+            "ON3RT Contest Logbook prêt"
+        )
+
+    def add_qso(self, data):
+
+        serial = self.db.get_next_serial()
+
+        self.db.add_qso(
+            callsign=data.get("callsign"),
+            qso_date="",
+            time_on="",
+            band=data.get("band"),
+            mode=data.get("mode"),
+            rst_sent=data.get("rst_sent"),
+            rst_recv=data.get("rst_recv"),
+            serial_sent=serial,
+            serial_recv=data.get("serial") or 0,
+            exchange_sent=f"{serial:03d}",
+            exchange_recv=data.get("exchange"),
+            points=1,
+            multiplier=1,
+        )
+
+        self.refresh()
+
+    def refresh(self):
+
+        self.qso_table.load_qsos(
+            self.db.get_all_qsos()
+        )
+
+        self.statistics.update_statistics(
+            self.db.get_statistics()
+        )
