@@ -3,8 +3,12 @@ ON3RT Radio Suite
 Module Logbook
 """
 
+from PySide6.QtWidgets import QFileDialog, QMessageBox
+
 from libraries.ui.base_window import BaseWindow
 from libraries.cat.cat_controller import CATController
+from libraries.logbook.import_manager import ImportManager
+from libraries.logbook.export_manager import ExportManager
 
 from apps.logbook.models import QSO
 from apps.logbook.qso_dialog import QSODialog
@@ -23,85 +27,91 @@ class LogbookWindow(BaseWindow):
 
         self.repository = LogbookRepository()
         self.model = LogbookTableModel()
-
         self.cat = CATController()
 
         self.ui = LogbookUI()
-
         self.ui.table.setModel(self.model)
-
         self.content_layout.addWidget(self.ui)
 
         self.ui.add_button.clicked.connect(self.new_qso)
+        self.ui.search_button.clicked.connect(self.search_qso)
+        self.ui.delete_button.clicked.connect(self.delete_qso)
+        self.ui.import_button.clicked.connect(self.import_adif)
+        self.ui.export_button.clicked.connect(self.export_adif)
 
         self.load_logbook()
 
     def load_logbook(self):
         qsos = self.repository.get_all()
         self.model.set_qsos(qsos)
+        self.statusBar().showMessage(f"{len(qsos)} QSO(s)")
 
-        self.statusBar().showMessage(
-            f"{len(qsos)} QSO(s)"
-        )
-
-    def _frequency_to_band(self, frequency: int) -> str:
-
-        bands = [
-            (1800000, 2000000, "160m"),
-            (3500000, 4000000, "80m"),
-            (5351000, 5367000, "60m"),
-            (7000000, 7300000, "40m"),
-            (10100000, 10150000, "30m"),
-            (14000000, 14350000, "20m"),
-            (18068000, 18168000, "17m"),
-            (21000000, 21450000, "15m"),
-            (24890000, 24990000, "12m"),
-            (28000000, 29700000, "10m"),
-            (50000000, 52000000, "6m"),
-            (70000000, 70500000, "4m"),
-            (144000000, 146000000, "2m"),
-            (430000000, 440000000, "70cm"),
-            (1240000000, 1300000000, "23cm"),
-        ]
-
-        for start, end, band in bands:
-            if start <= frequency <= end:
-                return band
-
-        return ""
+    def search_qso(self):
+        text = self.ui.search_edit.text().strip()
+        if not text:
+            self.load_logbook()
+            return
+        self.model.set_qsos(self.repository.search(text))
 
     def new_qso(self):
-
-        qso = QSO()
-
-        try:
-
-            if self.cat.connect():
-
-                frequency = self.cat.read_frequency()
-                mode = self.cat.read_mode()
-
-                self.cat.disconnect()
-
-                if frequency:
-                    qso.frequency = frequency
-                    qso.band = self._frequency_to_band(frequency)
-
-                if mode:
-                    qso.mode = mode
-
-        except Exception:
-            pass
-
-        dialog = QSODialog(self, qso)
-
+        dialog = QSODialog(self, QSO())
         if dialog.exec():
-
-            qso = dialog.get_qso()
-
-            self.repository.add_qso(qso)
-
+            self.repository.add_qso(dialog.get_qso())
             self.load_logbook()
+
+    def delete_qso(self):
+        index = self.ui.table.currentIndex()
+        if not index.isValid():
+            return
+        qso = self.model.qso(index.row())
+        self.repository.delete(qso.id)
+        self.load_logbook()
+
+    def import_adif(self):
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Importer ADIF",
+            "",
+            "ADIF (*.adi *.adif)"
+        )
+        if not filename:
+            return
+
+        manager = ImportManager()
+        try:
+            result = manager.import_file(filename)
+        finally:
+            manager.close()
+
+        self.load_logbook()
+
+        QMessageBox.information(
+            self,
+            "Import ADIF",
+            f"Total : {result['total']}\n"
+            f"Importés : {result['imported']}\n"
+            f"Doublons : {result['duplicates']}\n"
+            f"Erreurs : {result['errors']}"
+        )
+
+    def export_adif(self):
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Exporter ADIF",
+            "",
+            "ADIF (*.adi)"
+        )
+        if not filename:
+            return
+
+        manager = ExportManager()
+        count = manager.export(self.repository.get_all(), filename)
+
+        QMessageBox.information(
+            self,
+            "Export ADIF",
+            f"{count} QSO exporté(s)."
+        )
 
     def closeEvent(self, event):
         self.repository.close()

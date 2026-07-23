@@ -43,3 +43,17 @@ dist/
 # ==========================
 Thumbs.db
 Desktop.ini
+# ==========================
+# ON3RT Radio Suite
+# ==========================
+data/*.db
+config/qrz.json
+
+# Temporary packages
+Logbook_Fix_Package/
+ON3RT_Logbook_Update_001/
+
+# Archives
+*.zip
+*.7z
+*.rar

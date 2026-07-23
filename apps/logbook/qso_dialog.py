@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from apps.logbook.models import QSO
+from libraries.qrz.service import lookup
 
 
 class QSODialog(QDialog):
@@ -35,6 +36,7 @@ class QSODialog(QDialog):
         layout = QFormLayout(self)
 
         self.callsign = QLineEdit()
+        self.callsign.editingFinished.connect(self.lookup_callsign)
 
         self.date = QLineEdit()
         self.time = QLineEdit()
@@ -161,6 +163,31 @@ class QSODialog(QDialog):
         self.comment.setPlainText(self.qso.comment)
 
         self.software.setCurrentText(self.qso.software)
+
+
+    def lookup_callsign(self):
+
+        callsign = self.callsign.text().strip().upper()
+
+        if not callsign:
+            return
+
+        try:
+            info = lookup(callsign)
+        except Exception:
+            return
+
+        if not info:
+            return
+
+        nom = f"{info.get('name','')} {info.get('surname','')}".strip()
+
+        if nom:
+            self.name.setText(nom)
+
+        self.qth.setText(info.get("qth",""))
+        self.locator.setText(info.get("locator",""))
+        self.country.setText(info.get("country",""))
 
     def get_qso(self) -> QSO:
 

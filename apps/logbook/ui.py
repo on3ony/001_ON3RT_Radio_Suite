@@ -30,7 +30,7 @@ class LogbookUI(QWidget):
         title = QLabel("ON3RT Radio Suite - Logbook")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        filter_layout = QHBoxLayout()
+        toolbar = QHBoxLayout()
 
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText(
@@ -38,11 +38,24 @@ class LogbookUI(QWidget):
         )
 
         self.search_button = QPushButton("Rechercher")
+
         self.add_button = QPushButton("Nouveau QSO")
 
-        filter_layout.addWidget(self.search_edit)
-        filter_layout.addWidget(self.search_button)
-        filter_layout.addWidget(self.add_button)
+        self.import_button = QPushButton("Importer ADIF")
+
+        self.export_button = QPushButton("Exporter ADIF")
+
+        self.edit_button = QPushButton("Modifier")
+
+        self.delete_button = QPushButton("Supprimer")
+
+        toolbar.addWidget(self.search_edit, 1)
+        toolbar.addWidget(self.search_button)
+        toolbar.addWidget(self.add_button)
+        toolbar.addWidget(self.import_button)
+        toolbar.addWidget(self.export_button)
+        toolbar.addWidget(self.edit_button)
+        toolbar.addWidget(self.delete_button)
 
         self.table = QTableView()
 
@@ -60,12 +73,26 @@ class LogbookUI(QWidget):
 
         self.table.verticalHeader().setVisible(False)
 
-        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
 
-        self.table.horizontalHeader().setSectionResizeMode(
+        self.table.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+
+        self.table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+
+        header = self.table.horizontalHeader()
+
+        header.setStretchLastSection(True)
+
+        header.setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents
         )
 
         main_layout.addWidget(title)
-        main_layout.addLayout(filter_layout)
+        main_layout.addLayout(toolbar)
         main_layout.addWidget(self.table)
