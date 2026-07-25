@@ -27,7 +27,10 @@ class RadioManager:
 
     def __init__(self, port: Optional[str] = None, baudrate: int = 19200):
 
-        self.cat = CATController(port, baudrate)
+        if port is None:
+            self.cat = CATController()
+        else:
+            self.cat = CATController(port, baudrate)
 
         self.band_manager = BandManager()
         self.mode_manager = ModeManager()

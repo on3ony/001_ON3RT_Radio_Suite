@@ -1,6 +1,6 @@
 """
 ON3RT HF Manager V2
-modules/cat/serial_transport.py
+libraries/cat/serial_transport.py
 """
 
 from __future__ import annotations
@@ -50,9 +50,10 @@ class SerialTransport:
         """
         Envoie une trame CI-V et retourne la réponse radio.
 
-        L'IC-7300 renvoie parfois l'écho de la commande
-        avant la vraie réponse. On ignore donc les trames
-        identiques à la commande envoyée.
+        Version DEBUG :
+            - affiche la commande envoyée
+            - affiche chaque trame reçue
+            - ignore l'écho éventuel
         """
 
         if not self.is_connected:
@@ -61,21 +62,32 @@ class SerialTransport:
         # Nettoyage du buffer RX
         self.serial.reset_input_buffer()
 
-        # Envoi commande CI-V
+        print()
+        print("=" * 60)
+        print("CAT DEBUG")
+        print("TX :", frame.hex(" ").upper())
+
         self.write(frame)
 
-        # Recherche de la vraie réponse
         start = time.time()
 
         while True:
 
             response = self.read_until()
 
+            if response:
+                print("RX :", response.hex(" ").upper())
+
             if response and response != frame:
+                print("=> Réponse utilisée")
+                print("=" * 60)
+                print()
                 return response
 
-            # sécurité anti-boucle infinie
             if time.time() - start > self.timeout:
+                print("=> TIMEOUT")
+                print("=" * 60)
+                print()
                 return response
 
     @staticmethod

@@ -55,6 +55,15 @@ class QSOTable(QTableWidget):
 
         return time
 
+    def format_freq(self, freq):
+        try:
+            if freq in (None, "", "None"):
+                return ""
+            hz = int(float(freq))
+            return f"{hz:,}".replace(",", ".")
+        except Exception:
+            return str(freq)
+
     def load_qsos(self, qsos):
 
         self.setSortingEnabled(False)
@@ -77,7 +86,7 @@ class QSOTable(QTableWidget):
                 qso.get("callsign", ""),
                 qso.get("band", ""),
                 qso.get("mode", ""),
-                qso.get("freq", ""),
+                self.format_freq(qso.get("freq", "")),
                 qso.get("rst_sent", ""),
                 qso.get("rst_recv", ""),
                 qso.get("serial_sent", ""),
