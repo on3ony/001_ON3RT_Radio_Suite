@@ -4,13 +4,14 @@ ON3RT Radio Suite - Contest Logbook V5
 """
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QMainWindow,QWidget,QVBoxLayout,QGroupBox,QHeaderView
+from PySide6.QtWidgets import QMainWindow,QWidget,QVBoxLayout,QGroupBox,QHeaderView,QMessageBox
 
 from apps.contest.database import ContestDatabase
 from apps.contest.menu import create_menu
 from apps.contest.toolbar import create_toolbar
 from apps.contest.qso_entry import QSOEntry
 from apps.contest.qso_table import QSOTable
+from apps.contest.qso_edit_dialog import QSOEditDialog
 from apps.contest.statistics_panel import StatisticsPanel
 from apps.contest.resources import WINDOW_TITLE, ON3RT_DARK_THEME
 from libraries.radio.radio_manager import RadioManager
@@ -73,6 +74,8 @@ class ContestWindow(QMainWindow):
         layout.addWidget(stats_box)
 
         self.qso_entry.qso_add_requested.connect(self.add_qso)
+        self.qso_table.editRequested.connect(self.edit_qso)
+        self.qso_table.deleteRequested.connect(self.delete_qso)
 
     def update_radio(self):
         try:
@@ -100,6 +103,28 @@ class ContestWindow(QMainWindow):
             multiplier=1,
         )
         self.refresh()
+
+    def edit_qso(self, qso_id):
+        qso = self.db.get_qso(qso_id)
+        if qso is None:
+            return
+        dialog = QSOEditDialog(qso, self)
+        if dialog.exec() == QSOEditDialog.DialogCode.Accepted:
+            self.db.update_qso(qso_id, **dialog.values())
+            self.refresh()
+
+    def delete_qso(self, qso_id):
+        qso = self.db.get_qso(qso_id)
+        if qso is None:
+            return
+        answer = QMessageBox.question(
+            self,
+            "Supprimer le QSO",
+            f"Supprimer le QSO avec {qso.get('callsign', '')} ?",
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.db.delete_qso(qso_id)
+            self.refresh()
 
     def refresh(self):
         self.qso_table.load_qsos(self.db.get_all_qsos())
