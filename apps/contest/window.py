@@ -17,6 +17,8 @@ from apps.contest.qso_table import QSOTable
 from apps.contest.qso_edit_dialog import QSOEditDialog
 from apps.contest.contest_properties_dialog import ContestPropertiesDialog
 from apps.contest.adif_io import import_adif as read_adif_file, export_adif as write_adif_file
+from apps.contest.cabrillo_export_dialog import CabrilloExportDialog
+from apps.contest.cabrillo_export import export_cabrillo as write_cabrillo_file
 from apps.contest.statistics_panel import StatisticsPanel
 from apps.contest.resources import WINDOW_TITLE, ON3RT_DARK_THEME
 from libraries.radio.radio_manager import RadioManager
@@ -214,6 +216,36 @@ class ContestWindow(QMainWindow):
         count = write_adif_file(self.db.get_all_qsos(), path)
         QMessageBox.information(
             self, "Export ADIF", f"{count} QSO exporté(s) vers :\n{path}"
+        )
+
+    def export_cabrillo(self):
+        info = self.db.get_contest_info()
+        stats = self.db.get_statistics()
+        defaults = {
+            "contest_name": info.get("contest_name", ""),
+            "callsign": info.get("callsign", ""),
+            "category_operator": info.get("category", ""),
+            "category_power": info.get("power", ""),
+            "club": info.get("club", ""),
+            "name": info.get("operator", ""),
+            "operators": info.get("operator", ""),
+            "claimed_score": str(stats.get("score", "")),
+        }
+
+        dialog = CabrilloExportDialog(defaults, self)
+        if dialog.exec() != CabrilloExportDialog.DialogCode.Accepted:
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exporter Cabrillo", str(self.db.db_path.parent / "export.log"),
+            "Fichiers Cabrillo (*.log *.cbr)",
+        )
+        if not path:
+            return
+
+        count = write_cabrillo_file(self.db.get_all_qsos(), dialog.values(), path)
+        QMessageBox.information(
+            self, "Export Cabrillo", f"{count} QSO exporté(s) vers :\n{path}"
         )
 
     def save_contest_as(self):

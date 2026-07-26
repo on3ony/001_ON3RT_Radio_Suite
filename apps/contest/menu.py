@@ -34,6 +34,7 @@ def create_menu(window):
     act_export_cabrillo = QAction("Export Cabrillo", window)
     act_import_adif.triggered.connect(window.import_adif)
     act_export_adif.triggered.connect(window.export_adif)
+    act_export_cabrillo.triggered.connect(window.export_cabrillo)
     contest_menu.addAction(act_import_adif)
     contest_menu.addAction(act_export_adif)
     contest_menu.addAction(act_export_cabrillo)

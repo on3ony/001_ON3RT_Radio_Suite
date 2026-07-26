@@ -15,7 +15,7 @@ def create_toolbar(window):
         ("Ouvrir", window.open_contest),
         ("Enregistrer", window.save_contest_as),
         ("Import ADIF", window.import_adif),
-        ("Export Cabrillo", None),
+        ("Export Cabrillo", window.export_cabrillo),
         ("QRZ", None),
         ("CAT", None),
     ]

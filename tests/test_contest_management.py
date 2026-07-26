@@ -141,6 +141,45 @@ def test_export_adif_writes_file(window, monkeypatch, tmp_path):
     assert "ON3RT" in dest.read_text(encoding="utf-8")
 
 
+def test_export_cabrillo_writes_file(window, monkeypatch, tmp_path):
+    window.db.set_contest_info(contest_name="CQ-WW-SSB", callsign="ON3RT")
+    window.db.add_qso(callsign="ON4XYZ", serial_sent=1, mode="SSB", band="20m")
+    dest = tmp_path / "contest.log"
+
+    from apps.contest.cabrillo_export_dialog import CabrilloExportDialog
+    monkeypatch.setattr(
+        CabrilloExportDialog, "exec",
+        lambda self: CabrilloExportDialog.DialogCode.Accepted,
+    )
+
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (str(dest), "")),
+    )
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+
+    window.export_cabrillo()
+
+    assert dest.exists()
+    content = dest.read_text(encoding="utf-8")
+    assert "CONTEST: CQ-WW-SSB" in content
+    assert "ON4XYZ" in content
+
+
+def test_export_cabrillo_cancelled_does_not_write_file(window, monkeypatch, tmp_path):
+    from apps.contest.cabrillo_export_dialog import CabrilloExportDialog
+    monkeypatch.setattr(
+        CabrilloExportDialog, "exec",
+        lambda self: CabrilloExportDialog.DialogCode.Rejected,
+    )
+    dest = tmp_path / "should_not_exist.log"
+
+    window.export_cabrillo()
+
+    assert not dest.exists()
+
+
 def test_save_contest_as_copies_file(window, monkeypatch, tmp_path):
     window.db.add_qso(callsign="ON4XYZ", serial_sent=1)
     dest = tmp_path / "backup.db"
