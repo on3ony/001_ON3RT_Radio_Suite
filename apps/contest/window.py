@@ -16,6 +16,7 @@ from apps.contest.qso_entry import QSOEntry
 from apps.contest.qso_table import QSOTable
 from apps.contest.qso_edit_dialog import QSOEditDialog
 from apps.contest.contest_properties_dialog import ContestPropertiesDialog
+from apps.contest.adif_io import import_adif as read_adif_file, export_adif as write_adif_file
 from apps.contest.statistics_panel import StatisticsPanel
 from apps.contest.resources import WINDOW_TITLE, ON3RT_DARK_THEME
 from libraries.radio.radio_manager import RadioManager
@@ -185,6 +186,35 @@ class ContestWindow(QMainWindow):
         self.db = ContestDatabase(path)
         self.refresh()
         self.update_window_title()
+
+    def import_adif(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Importer ADIF", str(self.db.db_path.parent),
+            "Fichiers ADIF (*.adi *.adif)",
+        )
+        if not path:
+            return
+
+        qsos = read_adif_file(path)
+        for qso in qsos:
+            self.db.add_qso(**qso)
+        self.refresh()
+        QMessageBox.information(
+            self, "Import ADIF", f"{len(qsos)} QSO importé(s)."
+        )
+
+    def export_adif(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exporter ADIF", str(self.db.db_path.parent / "export.adi"),
+            "Fichiers ADIF (*.adi)",
+        )
+        if not path:
+            return
+
+        count = write_adif_file(self.db.get_all_qsos(), path)
+        QMessageBox.information(
+            self, "Export ADIF", f"{count} QSO exporté(s) vers :\n{path}"
+        )
 
     def save_contest_as(self):
         path, _ = QFileDialog.getSaveFileName(

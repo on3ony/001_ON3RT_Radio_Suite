@@ -29,9 +29,14 @@ def create_menu(window):
     file_menu.addAction(act_exit)
 
     contest_menu = menubar.addMenu("&Contest")
-    contest_menu.addAction(QAction("Import ADIF", window))
-    contest_menu.addAction(QAction("Export ADIF", window))
-    contest_menu.addAction(QAction("Export Cabrillo", window))
+    act_import_adif = QAction("Import ADIF", window)
+    act_export_adif = QAction("Export ADIF", window)
+    act_export_cabrillo = QAction("Export Cabrillo", window)
+    act_import_adif.triggered.connect(window.import_adif)
+    act_export_adif.triggered.connect(window.export_adif)
+    contest_menu.addAction(act_import_adif)
+    contest_menu.addAction(act_export_adif)
+    contest_menu.addAction(act_export_cabrillo)
 
     tools_menu = menubar.addMenu("&Outils")
     act_prefs = QAction("Préférences", window)

@@ -103,6 +103,44 @@ def test_open_contest_switches_database(window, monkeypatch, tmp_path):
     assert qsos[0]["callsign"] == "OTHER"
 
 
+def test_import_adif_adds_qsos(window, monkeypatch, tmp_path):
+    adif_path = tmp_path / "import.adi"
+    adif_path.write_text(
+        "<CALL:6>ON4XYZ<QSO_DATE:8>20260723<TIME_ON:4>0815<EOR>\n",
+        encoding="utf-8",
+    )
+
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName",
+        staticmethod(lambda *a, **k: (str(adif_path), "")),
+    )
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+
+    window.import_adif()
+
+    qsos = window.db.get_all_qsos()
+    assert len(qsos) == 1
+    assert qsos[0]["callsign"] == "ON4XYZ"
+
+
+def test_export_adif_writes_file(window, monkeypatch, tmp_path):
+    window.db.add_qso(callsign="ON3RT", serial_sent=1)
+    dest = tmp_path / "out.adi"
+
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (str(dest), "")),
+    )
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+
+    window.export_adif()
+
+    assert dest.exists()
+    assert "ON3RT" in dest.read_text(encoding="utf-8")
+
+
 def test_save_contest_as_copies_file(window, monkeypatch, tmp_path):
     window.db.add_qso(callsign="ON4XYZ", serial_sent=1)
     dest = tmp_path / "backup.db"
