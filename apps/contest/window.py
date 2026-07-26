@@ -16,6 +16,9 @@ from apps.contest.qso_entry import QSOEntry
 from apps.contest.qso_table import QSOTable
 from apps.contest.qso_edit_dialog import QSOEditDialog
 from apps.contest.contest_properties_dialog import ContestPropertiesDialog
+from apps.contest.contest_preferences import (
+    load_last_contest_properties, save_last_contest_properties,
+)
 from apps.contest.adif_io import import_adif as read_adif_file, export_adif as write_adif_file
 from apps.contest.cabrillo_export_dialog import CabrilloExportDialog
 from apps.contest.cabrillo_export import export_cabrillo as write_cabrillo_file
@@ -150,7 +153,9 @@ class ContestWindow(QMainWindow):
     def edit_contest_properties(self):
         dialog = ContestPropertiesDialog(self.db.get_contest_info(), self)
         if dialog.exec() == ContestPropertiesDialog.DialogCode.Accepted:
-            self.db.set_contest_info(**dialog.values())
+            values = dialog.values()
+            self.db.set_contest_info(**values)
+            save_last_contest_properties(values)
             self.update_window_title()
 
     def new_contest(self):
@@ -175,7 +180,13 @@ class ContestWindow(QMainWindow):
         self.db = ContestDatabase(db_path)
         self.db.reset_qsos()
         self.refresh()
-        self.edit_contest_properties()
+
+        dialog = ContestPropertiesDialog(load_last_contest_properties(), self)
+        if dialog.exec() == ContestPropertiesDialog.DialogCode.Accepted:
+            values = dialog.values()
+            self.db.set_contest_info(**values)
+            save_last_contest_properties(values)
+            self.update_window_title()
 
     def open_contest(self):
         path, _ = QFileDialog.getOpenFileName(

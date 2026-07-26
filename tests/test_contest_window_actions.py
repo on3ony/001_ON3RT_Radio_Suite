@@ -21,6 +21,12 @@ def window(qapp, tmp_path, monkeypatch):
         ),
     )
 
+    from apps.contest import contest_preferences
+    monkeypatch.setattr(
+        contest_preferences, "_default_path",
+        lambda: tmp_path / "contest_preferences.ini",
+    )
+
     from apps.contest.window import ContestWindow
     win = ContestWindow()
     yield win
@@ -152,6 +158,12 @@ def test_entry_seeded_from_existing_database_on_startup(qapp, tmp_path, monkeypa
     monkeypatch.setattr(
         database_module.ContestDatabase, "__init__",
         lambda self, db_path=None: original_init(self, db_path=seed_path),
+    )
+
+    from apps.contest import contest_preferences
+    monkeypatch.setattr(
+        contest_preferences, "_default_path",
+        lambda: tmp_path / "contest_preferences.ini",
     )
 
     win = ContestWindow()

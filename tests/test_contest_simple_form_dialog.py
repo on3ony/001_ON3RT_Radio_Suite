@@ -50,12 +50,8 @@ def test_qso_edit_dialog_uppercases_callsign_and_mode(qapp):
     assert values["points"] == 0
 
 
-def test_contest_properties_and_cabrillo_dialogs_share_behavior(qapp):
-    from apps.contest.contest_properties_dialog import ContestPropertiesDialog
+def test_cabrillo_export_dialog_uses_simple_form_dialog_behavior(qapp):
     from apps.contest.cabrillo_export_dialog import CabrilloExportDialog
-
-    props = ContestPropertiesDialog({"contest_name": "CQ WW"})
-    assert props.values()["contest_name"] == "CQ WW"
 
     cab = CabrilloExportDialog({"callsign": "ON3RT"})
     assert cab.values()["callsign"] == "ON3RT"

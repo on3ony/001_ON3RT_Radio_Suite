@@ -21,6 +21,12 @@ def window(qapp, tmp_path, monkeypatch):
         ),
     )
 
+    from apps.contest import contest_preferences
+    monkeypatch.setattr(
+        contest_preferences, "_default_path",
+        lambda: tmp_path / "contest_preferences.ini",
+    )
+
     from apps.contest.window import ContestWindow
     win = ContestWindow()
     yield win
@@ -81,6 +87,92 @@ def test_new_contest_declined_keeps_data(window, monkeypatch):
     window.new_contest()
 
     assert len(window.db.get_all_qsos()) == 1
+
+
+def test_edit_contest_properties_saves_preferences(window, monkeypatch, tmp_path):
+    from apps.contest.contest_properties_dialog import ContestPropertiesDialog
+    monkeypatch.setattr(
+        ContestPropertiesDialog, "exec",
+        lambda self: ContestPropertiesDialog.DialogCode.Accepted,
+    )
+    monkeypatch.setattr(
+        ContestPropertiesDialog, "values",
+        lambda self: {
+            "contest_name": "ARRL DX", "callsign": "ON6DEF",
+            "operator": "Multi Operator", "category": "Multi",
+            "power": "1000 W (HIGH)", "club": "ON3RT Radio Club",
+        },
+    )
+
+    window.edit_contest_properties()
+
+    from apps.contest.contest_preferences import load_last_contest_properties
+    saved = load_last_contest_properties(tmp_path / "contest_preferences.ini")
+    assert saved["contest_name"] == "ARRL DX"
+    assert saved["callsign"] == "ON6DEF"
+    assert saved["club"] == "ON3RT Radio Club"
+
+
+def test_new_contest_prefills_dialog_from_saved_preferences(window, monkeypatch, tmp_path):
+    from apps.contest.contest_preferences import save_last_contest_properties
+    save_last_contest_properties({
+        "contest_name": "REF HF", "callsign": "ON4XYZ",
+        "operator": "Multi Operator", "category": "Multi",
+        "power": "500 W", "club": "ON3RT Radio Club",
+    }, tmp_path / "contest_preferences.ini")
+
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+
+    from apps.contest.contest_properties_dialog import ContestPropertiesDialog
+    captured = {}
+    original_init = ContestPropertiesDialog.__init__
+
+    def spy_init(self, info, parent=None):
+        captured.update(info)
+        original_init(self, info, parent)
+
+    monkeypatch.setattr(ContestPropertiesDialog, "__init__", spy_init)
+    monkeypatch.setattr(
+        ContestPropertiesDialog, "exec",
+        lambda self: ContestPropertiesDialog.DialogCode.Rejected,
+    )
+
+    window.new_contest()
+
+    assert captured["contest_name"] == "REF HF"
+    assert captured["callsign"] == "ON4XYZ"
+    assert captured["operator"] == "Multi Operator"
+    assert captured["power"] == "500 W"
+
+
+def test_new_contest_saves_preferences_on_accept(window, monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+
+    from apps.contest.contest_properties_dialog import ContestPropertiesDialog
+    monkeypatch.setattr(
+        ContestPropertiesDialog, "exec",
+        lambda self: ContestPropertiesDialog.DialogCode.Accepted,
+    )
+    monkeypatch.setattr(
+        ContestPropertiesDialog, "values",
+        lambda self: {
+            "contest_name": "CQ WPX CW", "callsign": "ON5ABC",
+            "operator": "Single Operator", "category": "SOAB",
+            "power": "100 W (LOW)", "club": "",
+        },
+    )
+
+    window.new_contest()
+
+    assert window.db.get_contest_info()["contest_name"] == "CQ WPX CW"
+    assert "CQ WPX CW" in window.windowTitle()
+
+    from apps.contest.contest_preferences import load_last_contest_properties
+    saved = load_last_contest_properties(tmp_path / "contest_preferences.ini")
+    assert saved["contest_name"] == "CQ WPX CW"
+    assert saved["callsign"] == "ON5ABC"
 
 
 def test_open_contest_switches_database(window, monkeypatch, tmp_path):

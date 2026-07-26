@@ -23,6 +23,12 @@ def window(qapp, tmp_path, monkeypatch):
         ),
     )
 
+    from apps.contest import contest_preferences
+    monkeypatch.setattr(
+        contest_preferences, "_default_path",
+        lambda: tmp_path / "contest_preferences.ini",
+    )
+
     from apps.contest.window import ContestWindow
     win = ContestWindow()
     yield win
