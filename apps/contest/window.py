@@ -141,6 +141,7 @@ class ContestWindow(QMainWindow):
     def refresh(self):
         self.qso_table.load_qsos(self.db.get_all_qsos())
         self.statistics.update_statistics(self.db.get_statistics())
+        self.qso_entry.set_next_serial(self.db.get_next_serial())
 
     def update_window_title(self):
         name = self.db.get_contest_info().get("contest_name") or ""

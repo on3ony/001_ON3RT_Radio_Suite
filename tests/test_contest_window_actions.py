@@ -103,3 +103,59 @@ def test_delete_qso_declined_keeps_row(window, monkeypatch):
     window.delete_qso(qso_id)
 
     assert window.db.get_qso(qso_id) is not None
+
+
+def test_delete_last_qso_resets_entry_to_001_when_journal_empty(window, monkeypatch):
+    qso_id = window.db.add_qso(callsign="ON3RT", serial_sent=1)
+    window.refresh()
+    assert window.qso_entry.number.text() == "002"
+
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+
+    window.delete_qso(qso_id)
+
+    assert window.db.get_next_serial() == 1
+    assert window.qso_entry.number.text() == "001"
+    assert window.qso_entry.exchange.text() == "001"
+
+
+def test_delete_qso_recalculates_entry_from_remaining_qsos(window, monkeypatch):
+    window.db.add_qso(callsign="ON3RT", serial_sent=1)
+    window.db.add_qso(callsign="ON4XYZ", serial_sent=2)
+    third_id = window.db.add_qso(callsign="ON5ABC", serial_sent=3)
+    window.refresh()
+    assert window.qso_entry.number.text() == "004"
+
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+
+    window.delete_qso(third_id)
+
+    assert window.db.get_next_serial() == 3
+    assert window.qso_entry.number.text() == "003"
+    assert window.qso_entry.exchange.text() == "003"
+
+
+def test_entry_seeded_from_existing_database_on_startup(qapp, tmp_path, monkeypatch):
+    from apps.contest.database import ContestDatabase
+    from apps.contest.window import ContestWindow
+
+    seed_path = tmp_path / "contest_preexisting.db"
+    seed_db = ContestDatabase(seed_path)
+    seed_db.add_qso(callsign="ON3RT", serial_sent=1)
+    seed_db.add_qso(callsign="ON4XYZ", serial_sent=2)
+    seed_db.close()
+
+    import apps.contest.database as database_module
+    original_init = database_module.ContestDatabase.__init__
+    monkeypatch.setattr(
+        database_module.ContestDatabase, "__init__",
+        lambda self, db_path=None: original_init(self, db_path=seed_path),
+    )
+
+    win = ContestWindow()
+    try:
+        assert win.qso_entry.number.text() == "003"
+    finally:
+        win.close()

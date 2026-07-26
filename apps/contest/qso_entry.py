@@ -11,15 +11,14 @@ class QSOEntry(QWidget):
     def __init__(self, radio=None, parent=None):
         super().__init__(parent)
         self.radio=radio
-        self.serial=1
         self._freq=None
         self.call=QLineEdit()
         self.band=QLineEdit(); self.band.setReadOnly(True)
         self.mode=QLineEdit(); self.mode.setReadOnly(True)
         self.rst_sent=QLineEdit("59")
         self.rst_recv=QLineEdit("59")
-        self.number=QLineEdit(f"{self.serial:03d}")
-        self.exchange=QLineEdit(f"{self.serial:03d}")
+        self.number=QLineEdit("001")
+        self.exchange=QLineEdit("001")
         self.number.textChanged.connect(self.exchange.setText)
         self.exchange_recv=QLineEdit()
         self.add_button=QPushButton("Ajouter")
@@ -37,6 +36,9 @@ class QSOEntry(QWidget):
             if self.fields.index(o)==len(self.fields)-1:
                 self.emit_qso(); return True
         return super().eventFilter(o,e)
+
+    def set_next_serial(self, serial: int):
+        self.number.setText(f"{serial:03d}")
 
     def update_from_radio(self):
         if not self.radio: return
@@ -63,8 +65,6 @@ class QSOEntry(QWidget):
             "qso_date":qdate,
             "time_on":qtime
         })
-        self.serial+=1
         self.call.clear()
-        self.number.setText(f"{self.serial:03d}")
         self.exchange_recv.clear()
         self.call.setFocus()
