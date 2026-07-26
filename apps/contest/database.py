@@ -17,6 +17,11 @@ class ContestDatabase:
         self.conn.row_factory = sqlite3.Row
         self._create_table()
 
+    CONTEST_INFO_FIELDS = (
+        "contest_name", "callsign", "operator", "category",
+        "power", "club",
+    )
+
     def _create_table(self):
         self.conn.execute("""
         CREATE TABLE IF NOT EXISTS qso(
@@ -40,6 +45,42 @@ class ContestDatabase:
             notes TEXT
         )
         """)
+        self.conn.execute("""
+        CREATE TABLE IF NOT EXISTS contest_info(
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            contest_name TEXT DEFAULT '',
+            callsign TEXT DEFAULT '',
+            operator TEXT DEFAULT '',
+            category TEXT DEFAULT '',
+            power TEXT DEFAULT '',
+            club TEXT DEFAULT ''
+        )
+        """)
+        self.conn.execute(
+            "INSERT OR IGNORE INTO contest_info (id) VALUES (1)"
+        )
+        self.conn.commit()
+
+    def get_contest_info(self) -> dict:
+        cur = self.conn.execute(
+            "SELECT contest_name, callsign, operator, category, power, club "
+            "FROM contest_info WHERE id = 1"
+        )
+        row = cur.fetchone()
+        return dict(row) if row else {k: "" for k in self.CONTEST_INFO_FIELDS}
+
+    def set_contest_info(self, **fields: Any):
+        fields = {k: v for k, v in fields.items() if k in self.CONTEST_INFO_FIELDS}
+        if not fields:
+            return
+        sql = ", ".join(f"{k}=?" for k in fields)
+        self.conn.execute(
+            f"UPDATE contest_info SET {sql} WHERE id=1", list(fields.values())
+        )
+        self.conn.commit()
+
+    def reset_qsos(self):
+        self.conn.execute("DELETE FROM qso")
         self.conn.commit()
 
     def add_qso(self, **fields: Any) -> int:

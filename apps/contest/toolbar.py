@@ -11,9 +11,9 @@ def create_toolbar(window):
     toolbar.setMovable(False)
 
     actions = [
-        ("Nouveau", None),
-        ("Ouvrir", None),
-        ("Enregistrer", None),
+        ("Nouveau", window.new_contest),
+        ("Ouvrir", window.open_contest),
+        ("Enregistrer", window.save_contest_as),
         ("Import ADIF", None),
         ("Export Cabrillo", None),
         ("QRZ", None),

@@ -3,8 +3,11 @@ apps/contest/window.py
 ON3RT Radio Suite - Contest Logbook V5
 """
 
+import shutil
+from datetime import datetime
+
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QMainWindow,QWidget,QVBoxLayout,QGroupBox,QHeaderView,QMessageBox
+from PySide6.QtWidgets import QMainWindow,QWidget,QVBoxLayout,QGroupBox,QHeaderView,QMessageBox,QFileDialog
 
 from apps.contest.database import ContestDatabase
 from apps.contest.menu import create_menu
@@ -12,6 +15,7 @@ from apps.contest.toolbar import create_toolbar
 from apps.contest.qso_entry import QSOEntry
 from apps.contest.qso_table import QSOTable
 from apps.contest.qso_edit_dialog import QSOEditDialog
+from apps.contest.contest_properties_dialog import ContestPropertiesDialog
 from apps.contest.statistics_panel import StatisticsPanel
 from apps.contest.resources import WINDOW_TITLE, ON3RT_DARK_THEME
 from libraries.radio.radio_manager import RadioManager
@@ -29,12 +33,12 @@ class ContestWindow(QMainWindow):
         except Exception:
             ok = False
 
-        self.setWindowTitle(WINDOW_TITLE)
         self.resize(1500,900)
         self.setStyleSheet(ON3RT_DARK_THEME)
 
         self.build_ui()
         self.refresh()
+        self.update_window_title()
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_radio)
@@ -134,3 +138,64 @@ class ContestWindow(QMainWindow):
     def refresh(self):
         self.qso_table.load_qsos(self.db.get_all_qsos())
         self.statistics.update_statistics(self.db.get_statistics())
+
+    def update_window_title(self):
+        name = self.db.get_contest_info().get("contest_name") or ""
+        self.setWindowTitle(f"{WINDOW_TITLE} — {name}" if name else WINDOW_TITLE)
+
+    def edit_contest_properties(self):
+        dialog = ContestPropertiesDialog(self.db.get_contest_info(), self)
+        if dialog.exec() == ContestPropertiesDialog.DialogCode.Accepted:
+            self.db.set_contest_info(**dialog.values())
+            self.update_window_title()
+
+    def new_contest(self):
+        answer = QMessageBox.question(
+            self,
+            "Nouveau concours",
+            "Le journal actuel va être archivé et remis à zéro. Continuer ?",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        db_path = self.db.db_path
+        archive_dir = db_path.parent / "archives"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive_path = archive_dir / f"{db_path.stem}_{stamp}.db"
+
+        self.db.close()
+        if db_path.exists():
+            shutil.copy(db_path, archive_path)
+
+        self.db = ContestDatabase(db_path)
+        self.db.reset_qsos()
+        self.refresh()
+        self.edit_contest_properties()
+
+    def open_contest(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Ouvrir un concours", str(self.db.db_path.parent),
+            "Bases SQLite (*.db)",
+        )
+        if not path:
+            return
+
+        self.db.close()
+        self.db = ContestDatabase(path)
+        self.refresh()
+        self.update_window_title()
+
+    def save_contest_as(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Enregistrer le concours sous", str(self.db.db_path),
+            "Bases SQLite (*.db)",
+        )
+        if not path:
+            return
+
+        self.db.conn.commit()
+        shutil.copy(self.db.db_path, path)
+        QMessageBox.information(
+            self, "Enregistrer", f"Concours enregistré dans :\n{path}"
+        )

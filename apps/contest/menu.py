@@ -16,6 +16,9 @@ def create_menu(window):
     act_save = QAction("Enregistrer", window)
     act_exit = QAction("Quitter", window)
 
+    act_new.triggered.connect(window.new_contest)
+    act_open.triggered.connect(window.open_contest)
+    act_save.triggered.connect(window.save_contest_as)
     act_exit.triggered.connect(window.close)
 
     file_menu.addAction(act_new)
@@ -31,7 +34,9 @@ def create_menu(window):
     contest_menu.addAction(QAction("Export Cabrillo", window))
 
     tools_menu = menubar.addMenu("&Outils")
-    tools_menu.addAction(QAction("Préférences", window))
+    act_prefs = QAction("Préférences", window)
+    act_prefs.triggered.connect(window.edit_contest_properties)
+    tools_menu.addAction(act_prefs)
 
     help_menu = menubar.addMenu("&Aide")
     help_menu.addAction(QAction("À propos", window))
