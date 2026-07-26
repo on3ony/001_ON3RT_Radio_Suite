@@ -27,6 +27,25 @@ def window(qapp, tmp_path, monkeypatch):
     win.close()
 
 
+def test_add_qso_stores_received_exchange_separately_from_sent(window):
+    window.add_qso({
+        "callsign": "ON4XYZ",
+        "band": "20m",
+        "mode": "SSB",
+        "rst_sent": "59",
+        "rst_recv": "59",
+        "exchange_recv": "014",
+        "qso_date": "20260723",
+        "time_on": "0815",
+    })
+
+    qso = window.db.get_all_qsos()[0]
+    assert qso["exchange_recv"] == "014"
+    assert qso["serial_recv"] == 14
+    assert qso["serial_sent"] == 1
+    assert qso["exchange_sent"] == "001"
+
+
 def test_edit_qso_updates_database(window, monkeypatch):
     qso_id = window.db.add_qso(callsign="ON3RT", serial_sent=1)
     window.refresh()

@@ -86,6 +86,11 @@ class ContestWindow(QMainWindow):
 
     def add_qso(self,data):
         serial=self.db.get_next_serial()
+        exchange_recv=data.get("exchange_recv") or ""
+        try:
+            serial_recv=int(exchange_recv)
+        except (TypeError, ValueError):
+            serial_recv=0
         self.db.add_qso(
             callsign=data.get("callsign"),
             qso_date=data.get("qso_date"),
@@ -96,9 +101,9 @@ class ContestWindow(QMainWindow):
             rst_sent=data.get("rst_sent"),
             rst_recv=data.get("rst_recv"),
             serial_sent=serial,
-            serial_recv=data.get("serial") or 0,
+            serial_recv=serial_recv,
             exchange_sent=f"{serial:03d}",
-            exchange_recv=data.get("exchange"),
+            exchange_recv=exchange_recv,
             points=1,
             multiplier=1,
         )

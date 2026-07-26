@@ -21,10 +21,11 @@ class QSOEntry(QWidget):
         self.number=QLineEdit(f"{self.serial:03d}")
         self.exchange=QLineEdit(f"{self.serial:03d}")
         self.number.textChanged.connect(self.exchange.setText)
+        self.exchange_recv=QLineEdit()
         self.add_button=QPushButton("Ajouter")
-        self.fields=[self.call,self.rst_sent,self.rst_recv,self.number,self.exchange]
+        self.fields=[self.call,self.rst_sent,self.rst_recv,self.number,self.exchange,self.exchange_recv]
         lay=QHBoxLayout(self)
-        for n,w in [("Call",self.call),("Band",self.band),("Mode",self.mode),("RST TX",self.rst_sent),("RST RX",self.rst_recv),("N°",self.number),("Exchange",self.exchange)]:
+        for n,w in [("Call",self.call),("Band",self.band),("Mode",self.mode),("RST TX",self.rst_sent),("RST RX",self.rst_recv),("N° TX",self.number),("Exchange TX",self.exchange),("Exchange RX",self.exchange_recv)]:
             lay.addWidget(QLabel(n)); lay.addWidget(w)
         lay.addWidget(self.add_button)
         self.add_button.clicked.connect(self.emit_qso)
@@ -55,8 +56,9 @@ class QSOEntry(QWidget):
             "mode":self.mode.text().strip().upper(),
             "rst_sent":self.rst_sent.text(),
             "rst_recv":self.rst_recv.text(),
-            "serial":self.number.text(),
-            "exchange":self.exchange.text(),
+            "serial_sent":self.number.text(),
+            "exchange_sent":self.exchange.text(),
+            "exchange_recv":self.exchange_recv.text().strip(),
             "freq":self._freq,
             "qso_date":qdate,
             "time_on":qtime
@@ -64,4 +66,5 @@ class QSOEntry(QWidget):
         self.serial+=1
         self.call.clear()
         self.number.setText(f"{self.serial:03d}")
+        self.exchange_recv.clear()
         self.call.setFocus()
