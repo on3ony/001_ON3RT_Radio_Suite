@@ -3,7 +3,7 @@ apps/contest/menu.py
 ON3RT Radio Suite - Contest Logbook
 """
 
-from PyQt6.QtGui import QAction
+from PySide6.QtGui import QAction
 
 
 def create_menu(window):

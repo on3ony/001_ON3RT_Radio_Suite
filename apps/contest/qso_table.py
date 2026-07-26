@@ -3,11 +3,14 @@ apps/contest/qso_table.py
 ON3RT Radio Suite - Contest Logbook
 """
 
-from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem
-from PyQt6.QtCore import Qt
+from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QMenu
+from PySide6.QtCore import Qt, Signal
 
 
 class QSOTable(QTableWidget):
+
+    editRequested = Signal(int)
+    deleteRequested = Signal(int)
 
     HEADERS = [
         "ID",
@@ -110,3 +113,35 @@ class QSOTable(QTableWidget):
 
         self.resizeColumnsToContents()
         self.setSortingEnabled(True)
+
+    def _selected_qso_id(self):
+        row=self.currentRow()
+        if row<0:
+            return None
+        item=self.item(row,0)
+        if item is None:
+            return None
+        try:
+            return int(item.text())
+        except Exception:
+            return None
+
+    def mouseDoubleClickEvent(self,event):
+        qso_id=self._selected_qso_id()
+        if qso_id is not None:
+            self.editRequested.emit(qso_id)
+        super().mouseDoubleClickEvent(event)
+
+    def contextMenuEvent(self,event):
+        qso_id=self._selected_qso_id()
+        if qso_id is None:
+            return
+        menu=QMenu(self)
+        a1=menu.addAction("Modifier")
+        a2=menu.addAction("Supprimer")
+        act=menu.exec(event.globalPos())
+        if act==a1:
+            self.editRequested.emit(qso_id)
+        elif act==a2:
+            self.deleteRequested.emit(qso_id)
+

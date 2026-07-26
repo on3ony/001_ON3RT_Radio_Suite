@@ -3,8 +3,8 @@ apps/contest/window.py
 ON3RT Radio Suite - Contest Logbook V5
 """
 
-from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QMainWindow,QWidget,QVBoxLayout,QGroupBox,QHeaderView
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QMainWindow,QWidget,QVBoxLayout,QGroupBox,QHeaderView
 
 from apps.contest.database import ContestDatabase
 from apps.contest.menu import create_menu

@@ -3,7 +3,7 @@ apps/contest/statistics_panel.py
 ON3RT Radio Suite - Contest Logbook
 """
 
-from PyQt6.QtWidgets import QWidget, QGridLayout, QLabel
+from PySide6.QtWidgets import QWidget, QGridLayout, QLabel
 
 
 class StatisticsPanel(QWidget):

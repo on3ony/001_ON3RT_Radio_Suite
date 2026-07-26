@@ -2,11 +2,11 @@
 apps/contest/qso_entry.py
 """
 from datetime import datetime, timezone
-from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtWidgets import QWidget,QHBoxLayout,QLabel,QLineEdit,QPushButton
+from PySide6.QtCore import Signal, Qt
+from PySide6.QtWidgets import QWidget,QHBoxLayout,QLabel,QLineEdit,QPushButton
 
 class QSOEntry(QWidget):
-    qso_add_requested = pyqtSignal(dict)
+    qso_add_requested = Signal(dict)
 
     def __init__(self, radio=None, parent=None):
         super().__init__(parent)
