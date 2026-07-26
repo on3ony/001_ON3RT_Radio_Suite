@@ -22,7 +22,7 @@ from apps.cat_server.logger import logger
 class RadioService(QObject):
 
     updated = Signal()
-    connected = Signal()
+    connectionChanged = Signal(bool)
     disconnected = Signal()
     error = Signal(str)
 
@@ -44,12 +44,15 @@ class RadioService(QObject):
         try:
             ok = self.controller.connect()
             self.status.connected = bool(ok)
+
             if ok:
                 logger.connected(self.status.port)
-                self.connected.emit()
+                self.connectionChanged.emit(True)
                 self.timer.start()
                 self.poll()
+
             return ok
+
         except Exception as exc:
             self.status.last_error = str(exc)
             logger.exception(exc)
@@ -58,12 +61,17 @@ class RadioService(QObject):
 
     def disconnect(self):
         self.timer.stop()
+
         try:
             self.controller.disconnect()
         except Exception:
             pass
+
         self.status.connected = False
+
         logger.disconnected()
+
+        self.connectionChanged.emit(False)
         self.disconnected.emit()
 
     @property
@@ -101,6 +109,7 @@ class RadioService(QObject):
     def poll(self):
         if not self.controller.connected:
             return
+
         try:
             f = self.controller.read_frequency()
             m = self.controller.read_mode()
@@ -114,12 +123,14 @@ class RadioService(QObject):
                 changed = True
 
             m = self.mode_manager.normalize(m)
+
             if m is not None and m != self.status.mode:
                 self.status.mode = m
                 logger.mode(m)
                 changed = True
 
             state = p.get("ptt", False) if isinstance(p, dict) else bool(p)
+
             if state != self.status.ptt:
                 self.status.ptt = state
                 logger.ptt(state)

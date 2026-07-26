@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
 )
 
-from libraries.cat.cat_controller import CATController
+from apps.cat_server.radio_service import RadioService
 
 
 class CATServerWindow(QMainWindow):
@@ -21,7 +21,7 @@ class CATServerWindow(QMainWindow):
         self.setWindowTitle("ON3RT Radio Suite - CAT Server")
         self.resize(700, 450)
 
-        self.controller = CATController(port="COM3", baudrate=19200)
+        self.service = RadioService(port="COM3", baudrate=19200)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -35,7 +35,7 @@ class CATServerWindow(QMainWindow):
 
         grille = QGridLayout()
 
-        self.lbl_port = QLabel("Port : COM3")
+        self.lbl_port = QLabel(f"Port : {self.service.status.port}")
         self.lbl_status = QLabel("État : Déconnecté")
         self.lbl_freq = QLabel("Fréquence : -----")
         self.lbl_mode = QLabel("Mode : -----")
@@ -61,69 +61,44 @@ class CATServerWindow(QMainWindow):
         self.btn_connect.clicked.connect(self.connect_radio)
         self.btn_disconnect.clicked.connect(self.disconnect_radio)
 
-        self.timer = QTimer(self)
-        self.timer.setInterval(500)
-        self.timer.timeout.connect(self.refresh)
+        self.service.updated.connect(self.refresh)
+        self.service.connectionChanged.connect(self.on_connection_changed)
+        self.service.error.connect(self.on_error)
 
     def connect_radio(self):
-        try:
-            if self.controller.connect():
-                self.lbl_status.setText("État : Connecté")
-                self.statusBar().showMessage("IC-7300 connecté")
-                self.btn_connect.setEnabled(False)
-                self.btn_disconnect.setEnabled(True)
-                self.timer.start()
-                self.refresh()
-            else:
-                self.lbl_status.setText("État : Erreur de connexion")
-
-        except Exception as e:
-            self.lbl_status.setText("État : Erreur")
-            self.statusBar().showMessage(str(e))
+        self.service.connect()
 
     def disconnect_radio(self):
+        self.service.disconnect()
 
-        self.timer.stop()
+    def on_connection_changed(self, connected: bool):
+        self.lbl_status.setText("État : Connecté" if connected else "État : Déconnecté")
+        self.btn_connect.setEnabled(not connected)
+        self.btn_disconnect.setEnabled(connected)
+        self.statusBar().showMessage(
+            "IC-7300 connecté" if connected else "Déconnecté"
+        )
+        if connected:
+            self.refresh()
+        else:
+            self.lbl_freq.setText("Fréquence : -----")
+            self.lbl_mode.setText("Mode : -----")
+            self.lbl_ptt.setText("PTT : OFF")
 
-        try:
-            self.controller.disconnect()
-        except Exception:
-            pass
-
-        self.lbl_status.setText("État : Déconnecté")
-        self.lbl_freq.setText("Fréquence : -----")
-        self.lbl_mode.setText("Mode : -----")
-        self.lbl_ptt.setText("PTT : OFF")
-
-        self.btn_connect.setEnabled(True)
-        self.btn_disconnect.setEnabled(False)
-
-        self.statusBar().showMessage("Déconnecté")
+    def on_error(self, message: str):
+        self.statusBar().showMessage(message)
 
     def refresh(self):
+        info = self.service.info()
 
-        if not getattr(self.controller, "connected", False):
-            return
+        freq = info.get("frequency")
+        if freq is not None:
+            self.lbl_freq.setText(f"Fréquence : {freq:,} Hz".replace(",", "."))
 
-        try:
-            freq = self.controller.read_frequency()
-            mode = self.controller.read_mode()
-            ptt = self.controller.read_ptt()
+        mode = info.get("mode")
+        if mode:
+            self.lbl_mode.setText(f"Mode : {mode}")
 
-            if freq is not None:
-                self.lbl_freq.setText(
-                    f"Fréquence : {freq:,} Hz".replace(",", ".")
-                )
-
-            if mode is not None:
-                self.lbl_mode.setText(f"Mode : {mode}")
-
-            if isinstance(ptt, dict):
-                state = ptt.get("ptt", False)
-            else:
-                state = bool(ptt)
-
-            self.lbl_ptt.setText("PTT : ON" if state else "PTT : OFF")
-
-        except Exception as e:
-            self.statusBar().showMessage(str(e))
+        self.lbl_ptt.setText(
+            "PTT : ON" if info.get("ptt", False) else "PTT : OFF"
+        )
