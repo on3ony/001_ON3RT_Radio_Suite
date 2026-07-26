@@ -27,6 +27,19 @@ def window(qapp, tmp_path, monkeypatch):
     win.close()
 
 
+def test_show_about_does_not_crash(window, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    calls = []
+    monkeypatch.setattr(
+        QMessageBox, "about",
+        staticmethod(lambda *a, **k: calls.append(a)),
+    )
+
+    window.show_about()
+
+    assert len(calls) == 1
+
+
 def test_add_qso_stores_received_exchange_separately_from_sent(window):
     window.add_qso({
         "callsign": "ON4XYZ",

@@ -248,6 +248,12 @@ class ContestWindow(QMainWindow):
             self, "Export Cabrillo", f"{count} QSO exporté(s) vers :\n{path}"
         )
 
+    def show_about(self):
+        QMessageBox.about(
+            self, "À propos",
+            f"{WINDOW_TITLE}\n\nLogbook de concours ON3RT Radio Suite.",
+        )
+
     def save_contest_as(self):
         path, _ = QFileDialog.getSaveFileName(
             self, "Enregistrer le concours sous", str(self.db.db_path),

@@ -45,6 +45,8 @@ def create_menu(window):
     tools_menu.addAction(act_prefs)
 
     help_menu = menubar.addMenu("&Aide")
-    help_menu.addAction(QAction("À propos", window))
+    act_about = QAction("À propos", window)
+    act_about.triggered.connect(window.show_about)
+    help_menu.addAction(act_about)
 
     return menubar

@@ -3,14 +3,10 @@ apps/contest/cabrillo_export_dialog.py
 ON3RT Radio Suite - Contest Logbook
 """
 
-from PySide6.QtWidgets import (
-    QDialog, QFormLayout, QLineEdit, QDialogButtonBox
-)
-
-from apps.contest.resources import ON3RT_DARK_THEME
+from apps.contest.simple_form_dialog import SimpleFormDialog
 
 
-class CabrilloExportDialog(QDialog):
+class CabrilloExportDialog(SimpleFormDialog):
 
     FIELDS = [
         ("contest_name", "Concours (CONTEST)"),
@@ -30,24 +26,4 @@ class CabrilloExportDialog(QDialog):
     ]
 
     def __init__(self, defaults: dict, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Export Cabrillo")
-        self.setStyleSheet(ON3RT_DARK_THEME)
-
-        self.inputs = {}
-        layout = QFormLayout(self)
-
-        for key, label in self.FIELDS:
-            field = QLineEdit(str(defaults.get(key, "") or ""))
-            self.inputs[key] = field
-            layout.addRow(label, field)
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addRow(buttons)
-
-    def values(self) -> dict:
-        return {key: self.inputs[key].text().strip() for key, _ in self.FIELDS}
+        super().__init__(defaults, "Export Cabrillo", parent)
