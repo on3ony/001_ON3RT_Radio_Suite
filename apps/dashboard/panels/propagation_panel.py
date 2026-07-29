@@ -9,17 +9,26 @@ Dashboard — Propagation Panel
 Description :
     Affiche les indices solaires/géomagnétiques réels de la station
     (PropagationService, via LiveService) : flux solaire, nombre de
-    taches, indices A/K, classe X-Ray, état géomagnétique. N'accède
+    taches, indices A/K, classe X-Ray, état géomagnétique, puis les
+    conditions HF par bande calculées par HamQSL lui-même. N'accède
     jamais à PropagationService directement : reçoit une instance de
     LiveService et lit exclusivement les clés "propagation_connected"
     / "propagation_data" de l'état partagé (alimentées par
     data_sources/propagation_source.py — PropagationLiveDataSource).
 
-    Panneau V1 strictement descriptif : aucune interprétation, aucun
-    seuil, aucune évaluation de bande, aucun calcul, aucun graphique —
-    exactement les champs bruts publiés par PropagationService,
-    affichés tels quels ou "--" s'ils sont absents. Aucune interaction
-    utilisateur.
+    Panneau strictement descriptif : aucune interprétation, aucun
+    seuil, aucun calcul, aucune traduction des valeurs — exactement
+    les champs bruts publiés par PropagationService, affichés tels
+    quels ou "--" s'ils sont absents. Aucune interaction utilisateur.
+
+    Conditions HF (V2) : PropagationService expose "band_conditions"
+    tel que HamQSL le calcule (bloc "calculatedconditions" du flux),
+    sans aucun retraitement de sa part. C'est ce panneau, et lui seul,
+    qui choisit d'afficher exactement les quatre groupes 80m/40m,
+    30m/20m, 17m/15m, 12m/10m, dans cet ordre — un choix de
+    présentation, jamais une donnée recalculée. 160m et 6m ne sont pas
+    traités ici (absents du bloc HamQSL, non demandés pour cette
+    évolution).
 =========================================================
 """
 
@@ -29,6 +38,18 @@ from PySide6.QtWidgets import QLabel, QVBoxLayout, QFrame
 
 
 class PropagationPanel(QFrame):
+
+    # Groupes de bandes HF affichés, dans cet ordre — décision de
+    # présentation de ce panneau. La clé (à gauche) est le nom de paire
+    # tel que publié par PropagationService/HamQSL ; le libellé (à
+    # droite) n'en est qu'une reformulation d'affichage ("-" -> " / "),
+    # jamais une transformation de la valeur d'état elle-même.
+    BAND_GROUPS = (
+        ("80m-40m", "80m / 40m"),
+        ("30m-20m", "30m / 20m"),
+        ("17m-15m", "17m / 15m"),
+        ("12m-10m", "12m / 10m"),
+    )
 
     def __init__(self, live_service, parent=None):
         super().__init__(parent)
@@ -142,6 +163,40 @@ class PropagationPanel(QFrame):
 
             self._rows_container.addWidget(label)
             self._row_labels.append(label)
+
+        self._render_band_conditions(propagation)
+
+    def _render_band_conditions(self, propagation):
+        band_conditions = propagation.get("band_conditions")
+
+        if not isinstance(band_conditions, dict):
+            band_conditions = {}
+
+        self._add_row("Conditions HF (HamQSL)", bold=True, top_padding=True)
+
+        for key, label in self.BAND_GROUPS:
+            pair = band_conditions.get(key)
+
+            if not isinstance(pair, dict):
+                pair = {}
+
+            day = pair.get("day") or "--"
+            night = pair.get("night") or "--"
+
+            self._add_row(label, bold=True)
+            self._add_row(f"Jour : {day}")
+            self._add_row(f"Nuit : {night}")
+
+    def _add_row(self, text, bold=False, top_padding=False):
+        label = QLabel(text)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        weight = "font-weight:bold;" if bold else ""
+        padding = "padding-top:8px;" if top_padding else ""
+        label.setStyleSheet(f"font-size:11pt; color:#9beeff; {weight} {padding}")
+
+        self._rows_container.addWidget(label)
+        self._row_labels.append(label)
 
     # -----------------------------------------------------
     # Mise en forme des lignes (affichage brut, aucune interprétation)

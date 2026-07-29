@@ -26,13 +26,31 @@ interprétation, aucune donnée calculée, aucune recommandation :
     magnetic_field_nt        float | None
     geomagnetic_status       str | None   texte fourni tel quel par HamQSL
                                          (ex. "QUIET"), jamais recalculé
+    band_conditions          dict         voir ci-dessous
     source                   str          constante "HamQSL", jamais déduite
 
-Volontairement exclu du contrat V1 (décision explicite) : les
-évaluations de conditions par bande ("calculatedconditions" /
-"calculatedvhfconditions" du flux XML) — ce sont des interprétations
-déjà réalisées par HamQSL lui-même, pas des mesures physiques brutes.
-Reportées à une éventuelle V2.
+`band_conditions` (V2) restitue fidèlement le bloc "calculatedconditions"
+du flux XML — l'évaluation par bande est déjà calculée par HamQSL
+lui-même, ce service ne fait qu'exposer sa structure telle quelle,
+sans en réinterpréter le contenu ni en filtrer les entrées :
+    { "<paire de bandes>": { "<période>": "<état>", ... }, ... }
+ex. { "80m-40m": {"day": "Fair", "night": "Good"}, ... }
+
+Les noms de paires, les périodes ("day"/"night") et les libellés
+d'état ("Good"/"Fair"/"Poor"...) proviennent intégralement du flux —
+aucune liste de bandes n'est codée en dur ici, aucune valeur n'est
+traduite ni reclassée. Un dict vide signifie simplement que HamQSL n'a
+publié aucune entrée dans ce bloc pour ce sondage. Le choix des
+groupes affichés et de leur ordre de présentation revient entièrement
+au consommateur (ex. PropagationPanel) — ce service reste neutre sur
+ce point, conformément au principe "le service fournit, l'interface
+présente" déjà appliqué dans toute la Suite.
+
+Volontairement exclu du contrat (décision explicite) :
+"calculatedvhfconditions" (phénomènes VHF — aurore, E-Skip — par zone
+géographique, de nature différente d'une note de bande) reste hors
+périmètre. Reporté à une éventuelle évolution future, distincte de
+celle-ci.
 
 Le XML brut de la dernière requête réussie est conservé uniquement en
 interne (propriété `last_raw_response`, usage débogage) — jamais
@@ -213,5 +231,31 @@ class PropagationService(QObject):
             "solar_wind_kms": _parse_float(root.findtext("solardata/solarwind")),
             "magnetic_field_nt": _parse_float(root.findtext("solardata/magneticfield")),
             "geomagnetic_status": _parse_str(root.findtext("solardata/geomagfield")),
+            "band_conditions": PropagationService._parse_band_conditions(root),
             "source": SOURCE_NAME,
         }
+
+    @staticmethod
+    def _parse_band_conditions(root):
+        """
+        Restitue fidèlement "solardata/calculatedconditions/band" :
+        aucune paire de bandes n'est présupposée ici, aucun état n'est
+        traduit ou reclassé — seul HamQSL décide de ce que ce bloc
+        contient. Une entrée ("name" ou "time" manquant, ou état vide/
+        "No Report") est simplement omise, jamais remplacée par une
+        valeur inventée.
+        """
+
+        conditions = {}
+
+        for band in root.findall("solardata/calculatedconditions/band"):
+            name = _clean(band.get("name"))
+            period = _clean(band.get("time"))
+            state = _parse_str(band.text)
+
+            if name is None or period is None or state is None:
+                continue
+
+            conditions.setdefault(name, {})[period] = state
+
+        return conditions

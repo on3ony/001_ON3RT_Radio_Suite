@@ -1,5 +1,5 @@
 {
-  "timestamp": 1785329432.7183917,
+  "timestamp": 1785333259.0867414,
   "connected": true,
   "model": "IC-7300",
   "port": "COM3",
@@ -9,8 +9,8 @@
   "band": "20m",
   "mode": "USB",
   "utc_date": "2026-07-29",
-  "utc_time": "12:50:32",
+  "utc_time": "13:54:19",
   "adif_date": "20260729",
-  "adif_time": "125032",
+  "adif_time": "135419",
   "ptt": false
 }
