@@ -60,7 +60,7 @@ _MODULES = (
 )
 
 # Modules disposant deja d'une fenetre reelle dans le projet.
-_IMPLEMENTED = {"contest", "radio_control", "logbook", "cat_server", "frequency_bank", "dxcluster"}
+_IMPLEMENTED = {"contest", "radio_control", "logbook", "cat_server", "frequency_bank", "dxcluster", "scanner"}
 
 
 class MainWindow(QMainWindow):
@@ -300,5 +300,11 @@ class MainWindow(QMainWindow):
             return DXClusterWindow(
                 dxcluster_service=self.application.dxcluster_service,
                 radio_service=self.application.radio_service,
+            )
+        if key == "scanner":
+            from apps.scanner.window import ScannerWindow
+            return ScannerWindow(
+                radio_service=self.application.radio_service,
+                frequency_service=self.application.frequency_service,
             )
         raise ValueError(f"Module inconnu : {key}")

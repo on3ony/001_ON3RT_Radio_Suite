@@ -40,6 +40,7 @@ from apps.dashboard.panels.radio_panel import RadioPanel
 from apps.dashboard.panels.band_activity_panel import BandActivityPanel
 from apps.dashboard.panels.dxcluster_panel import DXClusterPanel
 from apps.dashboard.panels.logbook_panel import LogbookPanel
+from apps.dashboard.panels.propagation_panel import PropagationPanel
 from apps.dashboard.panels.weather_panel import WeatherPanel
 
 # Style local à cette page : reproduit les cartes cyan/navy déjà
@@ -97,7 +98,7 @@ class DashboardPage(QWidget):
         grid.addWidget(self._placeholder("🌍 CARTE"), 0, 1)
         grid.addWidget(DXClusterPanel(self.live_service), 0, 2)
 
-        grid.addWidget(self._placeholder("🌦 PROPAGATION"), 1, 0)
+        grid.addWidget(PropagationPanel(self.live_service), 1, 0)
         grid.addWidget(LogbookPanel(self.live_service), 1, 1)
         grid.addWidget(self._placeholder("🎙 WSJT-X", "WSJT-X non connecté", "#ffb454"), 1, 2)
 
