@@ -6,7 +6,6 @@ Module Logbook
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from libraries.ui.base_window import BaseWindow
-from libraries.cat.cat_controller import CATController
 from libraries.logbook.import_manager import ImportManager
 from libraries.logbook.export_manager import ExportManager
 
@@ -19,7 +18,7 @@ from apps.logbook.ui import LogbookUI
 
 class LogbookWindow(BaseWindow):
 
-    def __init__(self):
+    def __init__(self, radio_service=None):
         super().__init__(
             title="Logbook",
             subtitle="Gestion du carnet de trafic"
@@ -27,7 +26,21 @@ class LogbookWindow(BaseWindow):
 
         self.repository = LogbookRepository()
         self.model = LogbookTableModel()
-        self.cat = CATController()
+
+        # RadioService partagé (apps.cat_server.radio_service), démarré et
+        # connecté par Application : le Logbook ne se connecte plus jamais
+        # lui-même au port série, il ne fait que lire cette instance
+        # unique. Si aucun service n'est fourni (lancement isolé via
+        # apps/logbook/main.py), le Logbook reste utilisable sans CAT,
+        # comme avant.
+        self.radio = radio_service
+
+        # Dernières valeurs reçues du CAT, conservées pour de futures
+        # évolutions. Aucun affichage ne s'appuie dessus à ce stade.
+        self.radio_frequency = None
+        self.radio_mode = None
+        self.radio_ptt = False
+        self.radio_connected = False
 
         self.ui = LogbookUI()
         self.ui.table.setModel(self.model)
@@ -40,6 +53,13 @@ class LogbookWindow(BaseWindow):
         self.ui.export_button.clicked.connect(self.export_adif)
 
         self.load_logbook()
+
+        if self.radio is not None:
+            self.radio.updated.connect(self.update_radio)
+            self.radio.connectionChanged.connect(self.on_cat_connection_changed)
+
+            self.radio_connected = self.radio.connected
+            self.update_radio()
 
     def load_logbook(self):
         qsos = self.repository.get_all()
@@ -112,6 +132,32 @@ class LogbookWindow(BaseWindow):
             "Export ADIF",
             f"{count} QSO exporté(s)."
         )
+
+    def update_radio(self):
+        """
+        Reçoit fréquence/mode/PTT depuis le RadioService partagé et
+        les conserve pour de futures évolutions. N'affiche rien à ce
+        stade.
+        """
+
+        if self.radio is None:
+            return
+
+        self.radio_frequency = self.radio.frequency
+        self.radio_mode = self.radio.mode
+        self.radio_ptt = self.radio.status.ptt
+
+    def on_cat_connection_changed(self, connected: bool):
+        """
+        Reçoit l'état de connexion CAT depuis le RadioService partagé
+        et le conserve pour de futures évolutions. N'affiche rien à
+        ce stade.
+        """
+
+        self.radio_connected = connected
+
+        if connected:
+            self.update_radio()
 
     def closeEvent(self, event):
         self.repository.close()

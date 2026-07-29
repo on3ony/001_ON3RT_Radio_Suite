@@ -6,7 +6,6 @@ ON3RT Radio Suite - Contest Logbook V5
 import shutil
 from datetime import datetime
 
-from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QMainWindow,QWidget,QVBoxLayout,QGroupBox,QHeaderView,QMessageBox,QFileDialog
 
 from apps.contest.database import ContestDatabase
@@ -24,20 +23,26 @@ from apps.contest.cabrillo_export_dialog import CabrilloExportDialog
 from apps.contest.cabrillo_export import export_cabrillo as write_cabrillo_file
 from apps.contest.statistics_panel import StatisticsPanel
 from apps.contest.resources import WINDOW_TITLE, ON3RT_DARK_THEME
-from libraries.radio.radio_manager import RadioManager
 
 class ContestWindow(QMainWindow):
 
-    def __init__(self):
+    def __init__(self, radio_service=None, station_service=None):
         super().__init__()
 
         self.db = ContestDatabase()
-        self.radio = RadioManager()
 
-        try:
-            ok = self.radio.connect()
-        except Exception:
-            ok = False
+        # RadioService partagé (apps.cat_server.radio_service), démarré et
+        # connecté par Application : Contest ne se connecte plus jamais
+        # lui-même au port série, il ne fait que lire cette instance
+        # unique. Si aucun service n'est fourni (tests, lancement isolé
+        # via apps/contest/main.py), Contest reste utilisable sans CAT,
+        # comme avant.
+        self.radio = radio_service
+
+        # StationService partagé : source de vérité pour l'identité de la
+        # station (indicatif...). Reçu ici mais pas encore transmis à
+        # ContestPropertiesDialog (étape de migration suivante).
+        self.station = station_service
 
         self.resize(1500,900)
         self.setStyleSheet(ON3RT_DARK_THEME)
@@ -46,12 +51,12 @@ class ContestWindow(QMainWindow):
         self.refresh()
         self.update_window_title()
 
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_radio)
-        self.timer.start(500)
+        if self.radio is not None:
+            self.radio.updated.connect(self.update_radio)
+            self.radio.connectionChanged.connect(self.on_cat_connection_changed)
 
         self.statusBar().showMessage(
-            "CAT connecté" if ok else "CAT non connecté"
+            "CAT connecté" if (self.radio and self.radio.connected) else "CAT non connecté"
         )
 
     def build_ui(self):
@@ -89,10 +94,14 @@ class ContestWindow(QMainWindow):
 
     def update_radio(self):
         try:
-            self.radio.info()
             self.qso_entry.update_from_radio()
         except Exception:
             pass
+
+    def on_cat_connection_changed(self, connected: bool):
+        self.statusBar().showMessage("CAT connecté" if connected else "CAT non connecté")
+        if connected:
+            self.update_radio()
 
     def add_qso(self,data):
         serial=self.db.get_next_serial()
@@ -151,7 +160,7 @@ class ContestWindow(QMainWindow):
         self.setWindowTitle(f"{WINDOW_TITLE} — {name}" if name else WINDOW_TITLE)
 
     def edit_contest_properties(self):
-        dialog = ContestPropertiesDialog(self.db.get_contest_info(), self)
+        dialog = ContestPropertiesDialog(self.db.get_contest_info(), self, station_service=self.station)
         if dialog.exec() == ContestPropertiesDialog.DialogCode.Accepted:
             values = dialog.values()
             self.db.set_contest_info(**values)
@@ -181,7 +190,7 @@ class ContestWindow(QMainWindow):
         self.db.reset_qsos()
         self.refresh()
 
-        dialog = ContestPropertiesDialog(load_last_contest_properties(), self)
+        dialog = ContestPropertiesDialog(load_last_contest_properties(), self, station_service=self.station)
         if dialog.exec() == ContestPropertiesDialog.DialogCode.Accepted:
             values = dialog.values()
             self.db.set_contest_info(**values)

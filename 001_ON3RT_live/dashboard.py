@@ -7,26 +7,36 @@ ON3RT LIVE
 Dashboard
 Version : 2.0.0
 Auteur : ON3RT
+Description :
+    Assemble les composants graphiques fournis par theme.py en
+    fenêtre principale. Ne définit aucun style : couleurs, polices,
+    tailles, ombres et widgets réutilisables vivent tous dans
+    theme.py.
 =========================================================
 """
 
 from datetime import datetime, timezone
 
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
-    QLabel,
-    QFrame,
     QGridLayout,
-    QHBoxLayout,
     QMainWindow,
-    QSizePolicy,
+    QScrollArea,
     QStatusBar,
     QVBoxLayout,
     QWidget,
 )
 
-from panels.radio_panel import RadioPanel
+from . import theme
+from .panels.radio_panel import RadioPanel
+from .panels.band_activity_panel import BandActivityPanel
+from .panels.logbook_panel import LogbookPanel
+from .panels.weather_panel import WeatherPanel
+from .services.data_sources import LocalFileLiveDataSource, LogbookLiveDataSource
+from .services.live_service import LiveService
+
+VERSION_LABEL = "v2.0.0"
 
 
 class DashboardWindow(QMainWindow):
@@ -36,37 +46,15 @@ class DashboardWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("ON3RT LIVE")
-        self.resize(1600, 900)
-        self.setMinimumSize(1400, 800)
+        self.setMinimumSize(1100, 650)
+        self._apply_initial_geometry()
 
-        self.setStyleSheet("""
+        self.setStyleSheet(theme.main_window_qss())
 
-        QMainWindow{
-            background:#081629;
-        }
-
-        QWidget{
-            background:#081629;
-            color:white;
-            font-family:Segoe UI;
-        }
-
-        QLabel{
-            color:white;
-        }
-
-        QFrame{
-            background:#112743;
-            border:2px solid #00cfff;
-            border-radius:12px;
-        }
-
-        QStatusBar{
-            background:#10233f;
-            color:#9beeff;
-        }
-
-        """)
+        self.live_service = LiveService(
+            source=[LocalFileLiveDataSource(), LogbookLiveDataSource()],
+            parent=self,
+        )
 
         self.build_ui()
 
@@ -80,6 +68,28 @@ class DashboardWindow(QMainWindow):
 
     # -----------------------------------------------------
 
+    def _apply_initial_geometry(self):
+
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        avail = screen.availableGeometry()
+
+        margin = 60
+
+        width = min(1600, avail.width() - margin)
+        height = min(900, avail.height() - margin)
+
+        width = max(width, self.minimumWidth())
+        height = max(height, self.minimumHeight())
+
+        self.resize(width, height)
+
+        x = avail.x() + (avail.width() - width) // 2
+        y = avail.y() + (avail.height() - height) // 2
+
+        self.move(x, y)
+
+    # -----------------------------------------------------
+
     def build_ui(self):
 
         central = QWidget()
@@ -88,52 +98,34 @@ class DashboardWindow(QMainWindow):
 
         root = QVBoxLayout(central)
 
-        root.setContentsMargins(15,15,15,15)
+        root.setContentsMargins(0, 0, 0, 0)
 
-        root.setSpacing(15)
+        root.setSpacing(0)
 
         # -------------------------------------------------
         # HEADER
         # -------------------------------------------------
 
-        header = QHBoxLayout()
+        root.addWidget(self._build_header())
 
-        titre = QLabel("ON3RT LIVE")
+        self.live_service.state_changed.connect(self.update_connection_state)
+        self.update_connection_state(self.live_service.state())
 
-        font = QFont()
+        # -------------------------------------------------
+        # CORPS (grille de panneaux)
+        # -------------------------------------------------
 
-        font.setPointSize(22)
+        body = QWidget()
 
-        font.setBold(True)
+        body_layout = QVBoxLayout(body)
 
-        titre.setFont(font)
+        body_layout.setContentsMargins(
+            theme.SPACING_LG, theme.SPACING_LG, theme.SPACING_LG, theme.SPACING_LG
+        )
 
-        titre.setStyleSheet("color:#00dfff;")
+        body_layout.setSpacing(theme.SPACING_LG)
 
-        header.addWidget(titre)
-
-        header.addStretch()
-
-        self.utc = QLabel()
-
-        self.utc.setStyleSheet("""
-            font-size:14pt;
-            color:#8beeff;
-        """)
-
-        header.addWidget(self.utc)
-
-        self.state = QLabel("🔴 RADIO OFFLINE")
-
-        self.state.setStyleSheet("""
-            color:#ff6666;
-            font-size:14pt;
-            font-weight:bold;
-        """)
-
-        header.addWidget(self.state)
-
-        root.addLayout(header)
+        root.addWidget(body, 1)
 
         # -------------------------------------------------
         # GRID
@@ -141,25 +133,31 @@ class DashboardWindow(QMainWindow):
 
         grid = QGridLayout()
 
-        grid.setSpacing(15)
+        grid.setSpacing(theme.SPACING_MD)
 
-        grid.addWidget(RadioPanel(),0,0)
+        grid.addWidget(RadioPanel(self.live_service),0,0)
 
-        grid.addWidget(self.placeholder("🌍 CARTE"),0,1)
+        grid.addWidget(theme.build_info_card("🌍 CARTE", pattern=True),0,1)
 
-        grid.addWidget(self.placeholder("📡 DX CLUSTER"),0,2)
+        grid.addWidget(theme.build_info_card(
+            "📡 DX CLUSTER", "DX Cluster déconnecté", theme.STATE_AMBER,
+            columns=[("HEURE", 1), ("INDICATIF", 2), ("FRÉQUENCE", 1), ("MODE", 1)],
+        ),0,2)
 
-        grid.addWidget(self.placeholder("🌦 PROPAGATION"),1,0)
+        grid.addWidget(theme.build_info_card("🌦 PROPAGATION"),1,0)
 
-        grid.addWidget(self.placeholder("📖 LOGBOOK"),1,1)
+        grid.addWidget(LogbookPanel(self.live_service),1,1)
 
-        grid.addWidget(self.placeholder("🎙 WSJT-X"),1,2)
+        grid.addWidget(theme.build_info_card(
+            "🎙 WSJT-X", "WSJT-X non connecté", theme.STATE_AMBER,
+            columns=[("HEURE", 1), ("INDICATIF", 2), ("REPORT", 1), ("MODE", 1)],
+        ),1,2)
 
-        grid.addWidget(self.placeholder("🛰 ROTOR"),2,0)
+        grid.addWidget(WeatherPanel(),2,0)
 
-        grid.addWidget(self.placeholder("📈 STATISTIQUES"),2,1)
+        grid.addWidget(BandActivityPanel(self.live_service),2,1)
 
-        grid.addWidget(self.placeholder("💬 MESSAGES"),2,2)
+        grid.addWidget(theme.build_info_card("💬 MESSAGES"),2,2)
 
         grid.setColumnStretch(0,1)
 
@@ -173,7 +171,16 @@ class DashboardWindow(QMainWindow):
 
         grid.setRowStretch(2,1)
 
-        root.addLayout(grid)
+        grid_container = QWidget()
+        grid_container.setLayout(grid)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(grid_container)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        body_layout.addWidget(scroll)
 
         # -------------------------------------------------
 
@@ -184,54 +191,65 @@ class DashboardWindow(QMainWindow):
         self.setStatusBar(status)
 
     # -----------------------------------------------------
+    # En-tête
+    # -----------------------------------------------------
 
-    def placeholder(self,title):
+    def _build_header(self):
 
-        frame = QFrame()
+        header, layout = theme.make_header_frame()
 
-        frame.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding
-        )
+        # ---- Logo + signature -------------------------------------------
 
-        layout = QVBoxLayout(frame)
+        layout.addWidget(theme.make_header_logo())
 
-        lab = QLabel(title)
+        layout.addSpacing(theme.SPACING_MD)
 
-        font = QFont()
-
-        font.setPointSize(14)
-
-        font.setBold(True)
-
-        lab.setFont(font)
-
-        lab.setStyleSheet("color:#00dfff;")
-
-        lab.setAlignment(
-            lab.alignment().AlignCenter
-        )
-
-        txt = QLabel("En construction")
-
-        txt.setAlignment(
-            txt.alignment().AlignCenter
-        )
-
-        txt.setStyleSheet("""
-            color:#9beeff;
-            font-size:13pt;
-        """)
-
-        layout.addWidget(lab)
+        layout.addWidget(theme.make_brand_title("LIVE"))
 
         layout.addStretch()
 
-        layout.addWidget(txt)
+        # ---- Voyants réservés, regroupés (futures intégrations) -----------
 
-        layout.addStretch()
+        layout.addWidget(theme.make_status_group([
+            ("CAT", "inactive"),
+            ("DX CLUSTER", "inactive"),
+            ("WSJT-X", "inactive"),
+            ("INTERNET", "inactive"),
+        ]))
 
-        return frame
+        layout.addWidget(theme.make_separator())
+
+        # ---- État radio -----------------------------------------------------
+
+        self.state = theme.make_state_pill(active=False)
+
+        layout.addWidget(self.state)
+
+        layout.addWidget(theme.make_separator())
+
+        # ---- Horloge UTC ----------------------------------------------------
+
+        self.utc = theme.make_clock_label()
+
+        layout.addWidget(self.utc)
+
+        layout.addWidget(theme.make_separator())
+
+        # ---- Version ----------------------------------------------------
+
+        layout.addWidget(theme.make_caption_label(VERSION_LABEL))
+
+        return header
+
+    # -----------------------------------------------------
+
+    def update_connection_state(self,state):
+
+        connected = bool(state.get("connected", False)) if isinstance(state,dict) else False
+
+        self.state.setText("🟢 RADIO ONLINE" if connected else "🔴 RADIO OFFLINE")
+
+        self.state.setStyleSheet(theme.state_pill_qss(connected))
 
     # -----------------------------------------------------
 

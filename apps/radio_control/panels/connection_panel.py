@@ -74,6 +74,14 @@ class ConnectionPanel(QGroupBox):
         layout.addWidget(self.btn_disconnect, 1, 2)
         layout.addWidget(self.btn_refresh, 1, 3)
 
+        # ---------------------------------------------------------
+        # Modèle détecté
+        # ---------------------------------------------------------
+
+        self.lbl_model = QLabel("Modèle : --")
+
+        layout.addWidget(self.lbl_model, 2, 0, 1, 4)
+
     # ==========================================================
     # Méthodes publiques
     # ==========================================================
@@ -101,6 +109,33 @@ class ConnectionPanel(QGroupBox):
         """
 
         return int(self.cmb_baud.currentText())
+
+    def set_selected_port(self, port):
+        """
+        Présélectionne un port dans la liste s'il y est présent
+        (utilisé pour restaurer le dernier port utilisé).
+        """
+
+        index = self.cmb_port.findText(port)
+
+        if index >= 0:
+            self.cmb_port.setCurrentIndex(index)
+
+    def set_selected_baudrate(self, baudrate):
+        """
+        Présélectionne un baudrate (utilisé pour restaurer le
+        dernier baudrate utilisé).
+        """
+
+        self.cmb_baud.setCurrentText(str(baudrate))
+
+    def set_model(self, model):
+        """
+        Affiche le modèle de radio détecté (ou "--" si inconnu /
+        non connecté).
+        """
+
+        self.lbl_model.setText("Modèle : " + (model or "--"))
 
     def set_connected(self, connected: bool):
         """

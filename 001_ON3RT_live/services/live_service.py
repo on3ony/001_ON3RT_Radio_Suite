@@ -5,95 +5,86 @@
 =========================================================
 ON3RT LIVE
 Live Service
-Version : 1.0.0
+Version : 2.2.0
 Auteur : ON3RT
 Description :
-    Service de lecture périodique de data/live.json, exposé
-    via le signal state_changed. Ne dépend d'aucun panneau ni
-    de dashboard.py.
+    Couche d'abstraction unique entre ON3RT Live et n'importe quel(s)
+    fournisseur(s) de données d'état station ("Data Source", voir
+    data_sources/). Aucun panneau ne communique jamais directement
+    avec un fournisseur : ils n'utilisent que LiveService.state() et
+    le signal state_changed.
+
+    LiveService peut combiner plusieurs fournisseurs à la fois — ex.
+    le CAT (fréquence/mode/bande/PTT) et le Logbook (derniers QSO)
+    simultanément : chacun ne pousse que les clés dont il est
+    responsable (voir data_sources/base.py), fusionnées dans un seul
+    état partagé. LiveService ne connaît lui-même aucun détail d'un
+    fournisseur (fichier local, réseau, base de données...),
+    seulement l'interface commune LiveDataSource : il se contente
+    d'écouter leur signal `updated` et de relayer l'état fusionné.
+    Pour changer ou ajouter un fournisseur — ex. brancher demain une
+    autre installation ON3RT Radio Suite sur le réseau local,
+    appartenant à un autre radioamateur — il suffit de l'injecter au
+    constructeur ; aucune autre ligne de l'application (dashboard.py,
+    panels/*.py) n'a besoin de changer.
+
+    Par défaut, si aucun fournisseur n'est fourni, LiveService
+    utilise LocalFileLiveDataSource (mode actuel : installation
+    locale de la suite).
 =========================================================
 """
 
-import json
-from pathlib import Path
+from PySide6.QtCore import QObject, Signal
 
-from PySide6.QtCore import QObject, QTimer, Signal
-
-# ----------------------------------------------------------------------
-# Emplacement des données
-# ----------------------------------------------------------------------
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-LIVE_DATA_FILE = BASE_DIR / "data" / "live.json"
-
-# ----------------------------------------------------------------------
-# État par défaut
-# ----------------------------------------------------------------------
-
-DEFAULT_STATE = {
-    "connected": False,
-}
+from .data_sources import DEFAULT_STATE, LocalFileLiveDataSource
 
 
 class LiveService(QObject):
     """
-    Lit périodiquement data/live.json (toutes les 1000 ms) et
-    diffuse l'état courant via le signal state_changed.
+    Diffuse l'état courant de la station (fourni par un ou plusieurs
+    LiveDataSource) via le signal state_changed.
     """
 
     state_changed = Signal(dict)
 
-    def __init__(self, path=None, parent=None):
+    def __init__(self, source=None, path=None, parent=None):
 
         super().__init__(parent)
 
-        self._path = Path(path) if path else LIVE_DATA_FILE
         self._state = dict(DEFAULT_STATE)
 
-        self.timer = QTimer(self)
-        self.timer.setInterval(1000)
-        self.timer.timeout.connect(self.refresh)
-        self.timer.start()
+        if source is None:
+            sources = [LocalFileLiveDataSource(path=path)]
+        elif isinstance(source, (list, tuple)):
+            sources = list(source)
+        else:
+            sources = [source]
 
-        self.refresh()
+        self._sources = sources
+
+        for src in self._sources:
+            src.setParent(self)
+            src.updated.connect(self._handle_source_update)
+            src.start()
 
     # -----------------------------------------------------
-    # Rafraîchissement
+    # Relais des sources actives
     # -----------------------------------------------------
 
-    def refresh(self):
+    def _handle_source_update(self, partial_state):
         """
-        Relit data/live.json, met à jour l'état courant et
-        émet state_changed avec le nouvel état.
+        Slot connecté à LiveDataSource.updated. Fusionne l'état reçu
+        dans l'état courant (un fournisseur ne modifie que les clés
+        dont il est responsable) et diffuse le résultat aux panneaux
+        via state_changed.
         """
 
-        self._state = self._read_state()
-        self.state_changed.emit(self._state)
+        if isinstance(partial_state, dict):
+            self._state.update(partial_state)
 
-        return self._state
+        self.state_changed.emit(dict(self._state))
 
     def state(self):
-        """Retourne une copie de l'état courant (sans relire le fichier)."""
+        """Retourne une copie de l'état courant (sans solliciter les sources)."""
 
         return dict(self._state)
-
-    # -----------------------------------------------------
-    # Lecture du fichier
-    # -----------------------------------------------------
-
-    def _read_state(self):
-
-        try:
-            raw = self._path.read_text(encoding="utf-8")
-            data = json.loads(raw)
-
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            return dict(DEFAULT_STATE)
-
-        if not isinstance(data, dict):
-            return dict(DEFAULT_STATE)
-
-        state = dict(DEFAULT_STATE)
-        state.update(data)
-
-        return state

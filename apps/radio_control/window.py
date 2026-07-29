@@ -15,7 +15,7 @@ class RadioControlWindow(BaseWindow):
     Fenêtre principale Radio Control.
     """
 
-    def __init__(self):
+    def __init__(self, radio_service=None):
         super().__init__(
             title="Radio Control",
             subtitle="Contrôle de l'ICOM IC-7300"
@@ -23,8 +23,9 @@ class RadioControlWindow(BaseWindow):
 
         self.build_ui()
 
-        # Contrôleur
-        self.controller = RadioController(self)
+        # Contrôleur — reçoit le RadioService partagé de l'Application
+        # (aucune connexion série propre s'il est déjà fourni).
+        self.controller = RadioController(self, radio_service=radio_service)
 
     def build_ui(self):
         """Construit l'interface."""

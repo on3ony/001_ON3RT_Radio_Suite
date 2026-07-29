@@ -30,7 +30,7 @@ class CATLogger:
         self.logger.setLevel(logging.INFO)
 
         formatter = logging.Formatter(
-            "%(asctime)s | %(levelname)-8s | %(message)s",
+            "%(asctime)s.%(msecs)03d | %(levelname)-8s | %(message)s",
             "%Y-%m-%d %H:%M:%S",
         )
 
@@ -89,6 +89,45 @@ class CATLogger:
     def separator(self):
 
         self.info("-" * 70)
+
+    # ------------------------------------------------------------------
+    # Instrumentation CAT détaillée (diagnostic TIMEOUT / désynchronisation)
+    # ------------------------------------------------------------------
+
+    def port_opening(self, port: str, baudrate: int, timeout: float) -> None:
+        self.info(f"Ouverture du port série {port} @ {baudrate} bauds (timeout={timeout}s)")
+
+    def port_opened(self, port: str) -> None:
+        self.info(f"Port série {port} ouvert (handle OS actif)")
+
+    def port_closed(self, port: str) -> None:
+        self.info(f"Port série {port} fermé")
+
+    def polling_started(self, interval_ms: int) -> None:
+        self.info(f"Polling démarré (intervalle {interval_ms} ms)")
+
+    def polling_stopped(self) -> None:
+        self.info("Polling arrêté")
+
+    def tx(self, frame: bytes) -> None:
+        self.info(f"TX : {frame.hex(' ').upper()}")
+
+    def rx(self, frame: bytes) -> None:
+        self.info(f"RX : {frame.hex(' ').upper()}")
+
+    def rx_ignored_echo(self, frame: bytes) -> None:
+        self.info(f"RX (écho ignoré) : {frame.hex(' ').upper()}")
+
+    def cat_timeout(self, frame: bytes, elapsed: float, last_response: bytes) -> None:
+        self.warning(
+            f"TIMEOUT après {elapsed:.3f}s pour TX {frame.hex(' ').upper()}"
+            f" (dernier octet reçu : {last_response.hex(' ').upper() if last_response else 'aucun'})"
+        )
+
+    def decoded(self, label: str, response: bytes, decoded: dict) -> None:
+        self.info(
+            f"{label} : RX brut={response.hex(' ').upper() if response else '(vide)'} -> décodé={decoded}"
+        )
 
 
 logger = CATLogger()

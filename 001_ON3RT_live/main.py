@@ -15,7 +15,10 @@ import sys
 import traceback
 from pathlib import Path
 
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
+
+from .theme import LOGO_FILE
 
 # ----------------------------------------------------------------------
 # Informations application
@@ -25,8 +28,15 @@ APP_NAME = "ON3RT Live"
 APP_VERSION = "1.0.0"
 
 BASE_DIR = Path(__file__).resolve().parent
-ASSETS_DIR = BASE_DIR / "assets"
-LOGO_FILE = ASSETS_DIR / "logo.png"
+
+# ----------------------------------------------------------------------
+# Racine du projet (pour accéder aux modules partagés, ex. apps.logbook)
+# ----------------------------------------------------------------------
+
+PROJECT_ROOT = BASE_DIR.parent
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 # ----------------------------------------------------------------------
@@ -69,9 +79,10 @@ def main():
 
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
+    app.setWindowIcon(QIcon(str(LOGO_FILE)))
 
     try:
-        from dashboard import DashboardWindow
+        from .dashboard import DashboardWindow
 
         window = DashboardWindow()
         window.show()

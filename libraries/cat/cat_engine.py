@@ -5,6 +5,8 @@ modules/cat/cat_engine.py
 
 from __future__ import annotations
 
+import logging
+
 from libraries.cat.serial_transport import SerialTransport
 from libraries.cat.civ_protocol import CIVProtocol
 from libraries.cat.parser import CIVParser
@@ -13,6 +15,8 @@ from libraries.cat.mode import ModeManager
 from libraries.cat.ptt import PTTManager
 from libraries.cat.vfo import VFOManager
 from libraries.cat.command_queue import CommandQueue
+
+_log = logging.getLogger("CAT_SERVER")
 
 
 class CATEngine:
@@ -46,7 +50,9 @@ class CATEngine:
     def read_frequency(self) -> int:
         response = self.transact(self.frequency.build_read_command())
         parsed = self.parser.parse(response)
-        return parsed.get("decoded", {}).get("frequency_hz", 0)
+        value = parsed.get("decoded", {}).get("frequency_hz", 0)
+        _log.info(f"read_frequency() : RX brut={response.hex(' ').upper() if response else '(vide)'} -> {value}")
+        return value
 
     def set_frequency(self, hz: int) -> None:
         self.transact(self.frequency.build_set_command(hz))
@@ -54,7 +60,9 @@ class CATEngine:
     def read_mode(self) -> str:
         response = self.transact(self.mode.build_read_command())
         parsed = self.parser.parse(response)
-        return parsed.get("decoded", {}).get("mode_name", "UNKNOWN")
+        value = parsed.get("decoded", {}).get("mode_name", "UNKNOWN")
+        _log.info(f"read_mode() : RX brut={response.hex(' ').upper() if response else '(vide)'} -> {value}")
+        return value
 
     def set_mode(self, mode) -> None:
         self.transact(self.mode.build_set_command(mode))
@@ -62,7 +70,9 @@ class CATEngine:
     def read_ptt(self):
         response = self.transact(self.ptt.build_read_command())
         parsed = self.parser.parse(response)
-        return parsed.get("decoded", {"ptt": False})
+        value = parsed.get("decoded", {"ptt": False})
+        _log.info(f"read_ptt() : RX brut={response.hex(' ').upper() if response else '(vide)'} -> {value}")
+        return value
 
     def set_ptt(self, state: bool) -> None:
         self.transact(self.ptt.build_set_command(state))

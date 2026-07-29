@@ -1,27 +1,37 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from serial.tools import list_ports
+
+from PySide6.QtCore import Qt, QSettings
 from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
-    QPushButton,
     QVBoxLayout,
     QWidget,
-    QGridLayout,
 )
 
 from apps.cat_server.radio_service import RadioService
+from apps.radio_control.panels.connection_panel import ConnectionPanel
+
+# ----------------------------------------------------------------------
+# Dernier port / baudrate utilisés : mémorisés entre deux lancements
+# via QSettings (HKEY_CURRENT_USER sous Windows).
+# ----------------------------------------------------------------------
+
+DEFAULT_BAUDRATE = 19200
 
 
 class CATServerWindow(QMainWindow):
 
-    def __init__(self):
+    def __init__(self, service: RadioService | None = None):
         super().__init__()
 
         self.setWindowTitle("ON3RT Radio Suite - CAT Server")
-        self.resize(700, 450)
+        self.resize(700, 480)
 
-        self.service = RadioService(port="COM3", baudrate=19200)
+        self.settings = QSettings("ON3RT", "CATServer")
+
+        self.service = None
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -33,51 +43,121 @@ class CATServerWindow(QMainWindow):
         titre.setStyleSheet("font-size:24px;font-weight:bold;")
         layout.addWidget(titre)
 
-        grille = QGridLayout()
+        self.connection_panel = ConnectionPanel()
+        layout.addWidget(self.connection_panel)
 
-        self.lbl_port = QLabel(f"Port : {self.service.status.port}")
-        self.lbl_status = QLabel("État : Déconnecté")
         self.lbl_freq = QLabel("Fréquence : -----")
         self.lbl_mode = QLabel("Mode : -----")
         self.lbl_ptt = QLabel("PTT : OFF")
 
-        grille.addWidget(self.lbl_port, 0, 0)
-        grille.addWidget(self.lbl_status, 1, 0)
-        grille.addWidget(self.lbl_freq, 2, 0)
-        grille.addWidget(self.lbl_mode, 3, 0)
-        grille.addWidget(self.lbl_ptt, 4, 0)
+        for lbl in (self.lbl_freq, self.lbl_mode, self.lbl_ptt):
+            lbl.setStyleSheet("font-size:14px;")
+            layout.addWidget(lbl)
 
-        layout.addLayout(grille)
-
-        self.btn_connect = QPushButton("Connexion IC-7300")
-        self.btn_disconnect = QPushButton("Déconnexion")
-        self.btn_disconnect.setEnabled(False)
-
-        layout.addWidget(self.btn_connect)
-        layout.addWidget(self.btn_disconnect)
+        layout.addStretch()
 
         self.statusBar().showMessage("CAT Server prêt")
 
-        self.btn_connect.clicked.connect(self.connect_radio)
-        self.btn_disconnect.clicked.connect(self.disconnect_radio)
+        self.connection_panel.btn_refresh.clicked.connect(self.refresh_ports)
+        self.connection_panel.btn_connect.clicked.connect(self.connect_radio)
+        self.connection_panel.btn_disconnect.clicked.connect(self.disconnect_radio)
 
-        self.service.updated.connect(self.refresh)
-        self.service.connectionChanged.connect(self.on_connection_changed)
-        self.service.error.connect(self.on_error)
+        self.refresh_ports()
+
+        if service is not None:
+            self._attach_service(service)
+
+    # ------------------------------------------------------------------
+    # Service CAT partagé (démarré en arrière-plan par Application)
+    # ------------------------------------------------------------------
+
+    def _attach_service(self, service: "RadioService") -> None:
+        """
+        Se branche sur un RadioService déjà existant (celui démarré en
+        arrière-plan au lancement de la suite, ou un nouveau créé depuis
+        cette fenêtre) : évite d'ouvrir une seconde fois le même port
+        série, et reflète immédiatement son état courant.
+        """
+
+        self.service = service
+
+        service.updated.connect(self.refresh)
+        service.connectionChanged.connect(self.on_connection_changed)
+        service.error.connect(self.on_error)
+
+        self.on_connection_changed(service.connected)
+
+        if service.connected:
+            self.connection_panel.set_selected_port(service.port)
+            self.connection_panel.set_selected_baudrate(service.baudrate)
+
+    # ------------------------------------------------------------------
+    # Détection des ports / restauration des dernières valeurs utilisées
+    # ------------------------------------------------------------------
+
+    def refresh_ports(self):
+
+        ports = sorted(p.device for p in list_ports.comports())
+
+        self.connection_panel.set_ports(ports)
+
+        last_port = self.settings.value("last_port", "")
+        last_baudrate = self.settings.value(
+            "last_baudrate", DEFAULT_BAUDRATE, type=int
+        )
+
+        if last_port:
+            self.connection_panel.set_selected_port(last_port)
+
+        self.connection_panel.set_selected_baudrate(last_baudrate)
+
+        self.statusBar().showMessage(f"{len(ports)} port(s) détecté(s)")
+
+    # ------------------------------------------------------------------
+    # Connexion / déconnexion
+    # ------------------------------------------------------------------
 
     def connect_radio(self):
-        self.service.connect()
+
+        port = self.connection_panel.selected_port()
+
+        if not port:
+            self.statusBar().showMessage("Aucun port COM sélectionné")
+            return
+
+        baudrate = self.connection_panel.selected_baudrate()
+
+        if self.service is None:
+            self._attach_service(RadioService(port=port, baudrate=baudrate))
+        else:
+            self.service.reconfigure(port, baudrate)
+
+        ok = self.service.connect()
+
+        if ok:
+            self.settings.setValue("last_port", port)
+            self.settings.setValue("last_baudrate", baudrate)
+        else:
+            if not self.service.status.last_error:
+                self.statusBar().showMessage(f"Connexion impossible sur {port}")
 
     def disconnect_radio(self):
-        self.service.disconnect()
+
+        if self.service:
+            self.service.disconnect()
 
     def on_connection_changed(self, connected: bool):
-        self.lbl_status.setText("État : Connecté" if connected else "État : Déconnecté")
-        self.btn_connect.setEnabled(not connected)
-        self.btn_disconnect.setEnabled(connected)
-        self.statusBar().showMessage(
-            "IC-7300 connecté" if connected else "Déconnecté"
+
+        self.connection_panel.set_connected(connected)
+
+        self.connection_panel.set_model(
+            self.service.model if (connected and self.service) else None
         )
+
+        self.statusBar().showMessage(
+            "Connecté" if connected else "Déconnecté"
+        )
+
         if connected:
             self.refresh()
         else:
@@ -88,7 +168,15 @@ class CATServerWindow(QMainWindow):
     def on_error(self, message: str):
         self.statusBar().showMessage(message)
 
+    # ------------------------------------------------------------------
+    # Affichage
+    # ------------------------------------------------------------------
+
     def refresh(self):
+
+        if not self.service:
+            return
+
         info = self.service.info()
 
         freq = info.get("frequency")

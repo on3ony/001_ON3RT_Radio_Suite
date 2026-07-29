@@ -31,13 +31,12 @@ POWER_LEVELS = [
     "100 W (LOW)", "200 W", "500 W", "1000 W (HIGH)",
 ]
 
-DEFAULT_CALLSIGN = "ON3RT"
 DEFAULT_POWER = "25 W"
 
 
 class ContestPropertiesDialog(QDialog):
 
-    def __init__(self, info: dict, parent=None):
+    def __init__(self, info: dict, parent=None, station_service=None):
         super().__init__(parent)
         self.setWindowTitle("Propriétés du concours")
         self.setStyleSheet(ON3RT_DARK_THEME)
@@ -51,7 +50,8 @@ class ContestPropertiesDialog(QDialog):
         self._set_combo_text(self.contest_name, info.get("contest_name"))
         layout.addRow("Concours", self.contest_name)
 
-        self.callsign = QLineEdit(info.get("callsign") or DEFAULT_CALLSIGN)
+        fallback_callsign = station_service.callsign if station_service else ""
+        self.callsign = QLineEdit(info.get("callsign") or fallback_callsign)
         layout.addRow("Indicatif", self.callsign)
 
         self.operator = QComboBox()

@@ -5,9 +5,7 @@ Radio Control Controller
 
 from serial.tools import list_ports
 
-from PySide6.QtCore import QTimer
-
-from libraries.cat.cat_controller import CATController
+from apps.cat_server.radio_service import RadioService
 
 
 class RadioController:
@@ -15,23 +13,23 @@ class RadioController:
     Contrôleur de Radio Control.
     """
 
-    def __init__(self, window):
+    def __init__(self, window, radio_service=None):
 
         self.window = window
-
-        self.cat = None
-
-        self.timer = QTimer()
-        self.timer.setInterval(500)
-        self.timer.timeout.connect(self.update_radio)
+        self.service = None
 
         self._connect_signals()
-
         self.refresh_ports()
 
-    # ==========================================================
-    # Signaux
-    # ==========================================================
+        # RadioService partagé (apps.cat_server.radio_service), démarré et
+        # connecté par Application : Radio Control ne se connecte plus
+        # jamais lui-même en créant une instance séparée s'il en reçoit
+        # une déjà existante. Si aucun service n'est fourni (lancement
+        # isolé via apps/radio_control/main.py), le comportement autonome
+        # d'origine (créer sa propre connexion depuis les boutons) reste
+        # disponible.
+        if radio_service is not None:
+            self._attach_service(radio_service)
 
     def _connect_signals(self):
 
@@ -41,142 +39,82 @@ class RadioController:
         panel.btn_connect.clicked.connect(self.connect_radio)
         panel.btn_disconnect.clicked.connect(self.disconnect_radio)
 
-    # ==========================================================
-    # Ports série
-    # ==========================================================
-
     def refresh_ports(self):
 
-        ports = []
-
-        for port in list_ports.comports():
-            ports.append(port.device)
-
-        ports.sort()
+        ports = sorted([p.device for p in list_ports.comports()])
 
         self.window.connection_panel.set_ports(ports)
-
         self.window.statusBar().showMessage(
             f"{len(ports)} port(s) détecté(s)"
         )
 
-    # ==========================================================
-    # Connexion
-    # ==========================================================
-
     def connect_radio(self):
 
         panel = self.window.connection_panel
-
         port = panel.selected_port()
-        baud = panel.selected_baudrate()
+        baudrate = panel.selected_baudrate()
 
-        self.cat = CATController(
-            port=port,
-            baudrate=baud
-        )
-
-        if self.cat.connect():
-
-            panel.set_connected(True)
-            self.window.radio_panel.set_connected(True)
-
-            self.timer.start()
-
-            self.window.statusBar().showMessage(
-                f"Connecté à {port}"
-            )
-
+        if self.service is None:
+            self._attach_service(RadioService(port=port, baudrate=baudrate))
         else:
+            self.service.reconfigure(port, baudrate)
 
-            self.window.statusBar().showMessage(
-                "Connexion impossible"
-            )
+        self.service.connect()
 
     def disconnect_radio(self):
 
-        self.timer.stop()
+        if self.service:
+            self.service.disconnect()
 
-        if self.cat:
+    # ------------------------------------------------------------------
+    # Service CAT partagé (démarré en arrière-plan par Application)
+    # ------------------------------------------------------------------
 
-            self.cat.disconnect()
+    def _attach_service(self, service: RadioService) -> None:
+        """
+        Se branche sur un RadioService déjà existant : évite d'ouvrir une
+        seconde fois le même port série, et reflète immédiatement son état
+        courant.
+        """
 
-        self.window.connection_panel.set_connected(False)
-        self.window.radio_panel.set_connected(False)
+        self.service = service
+
+        service.updated.connect(self.update_radio)
+        service.connectionChanged.connect(self.on_connection_changed)
+        service.error.connect(self.window.statusBar().showMessage)
+
+        self.on_connection_changed(service.connected)
+
+        if service.connected:
+            panel = self.window.connection_panel
+            panel.set_selected_port(service.port)
+            panel.set_selected_baudrate(service.baudrate)
+
+    def on_connection_changed(self, connected: bool):
+
+        self.window.connection_panel.set_connected(connected)
+        self.window.radio_panel.set_connected(connected)
 
         self.window.statusBar().showMessage(
-            "Déconnecté"
+            "Connecté" if connected else "Déconnecté"
         )
 
-    # ==========================================================
-    # Rafraîchissement
-    # ==========================================================
+        if connected:
+            self.update_radio()
 
     def update_radio(self):
 
-        if not self.cat:
+        if not self.service:
             return
 
-        try:
+        info = self.service.info()
 
-            frequency = self.cat.read_frequency()
-
-            mhz = frequency / 1000000.0
-
+        f = info.get("frequency")
+        if f:
             self.window.radio_panel.set_frequency(
-                f"{mhz:,.6f} MHz".replace(",", " ")
+                f"{f/1000000:.6f} MHz"
             )
 
-        except Exception:
-            pass
-
-        try:
-
-            mode = self.cat.read_mode()
-
-            self.window.radio_panel.set_mode(str(mode))
-
-        except Exception:
-            pass
-
-        try:
-
-            vfo = self.cat.read_vfo()
-
-            if isinstance(vfo, dict):
-
-                if "vfo" in vfo:
-                    value = vfo["vfo"]
-                elif "name" in vfo:
-                    value = vfo["name"]
-                else:
-                    value = str(vfo)
-
-            else:
-                value = str(vfo)
-
-            self.window.radio_panel.set_vfo(value)
-
-        except Exception:
-            pass
-
-        try:
-
-            ptt = self.cat.read_ptt()
-
-            if isinstance(ptt, dict):
-
-                if "ptt" in ptt:
-                    value = bool(ptt["ptt"])
-                elif "state" in ptt:
-                    value = bool(ptt["state"])
-                else:
-                    value = False
-
-            else:
-                value = bool(ptt)
-
-            self.window.radio_panel.set_ptt(value)
-
-        except Exception:
-            pass
+        self.window.radio_panel.set_mode(info.get("mode", "---"))
+        self.window.radio_panel.set_vfo(str(info.get("vfo", "A")))
+        self.window.radio_panel.set_ptt(bool(info.get("ptt", False)))
