@@ -66,7 +66,7 @@ from apps.frequency_bank.table_model import FrequencyTableModel
 
 class FrequencyBankWindow(BaseWindow):
 
-    def __init__(self, frequency_service: FrequencyService = None):
+    def __init__(self, frequency_service: FrequencyService = None, radio_service=None):
         super().__init__(
             title="Banque de fréquences",
             subtitle="Fréquences de référence, plan de bandes, favoris",
@@ -78,6 +78,15 @@ class FrequencyBankWindow(BaseWindow):
         # elle seule le fermera alors à la fermeture (voir closeEvent).
         self._owns_service = frequency_service is None
         self.service = frequency_service or FrequencyService()
+
+        # RadioService partagé (apps.cat_server.radio_service), injecté
+        # depuis core/main_window.py. La Banque de fréquences n'utilise
+        # jamais directement CATController ni le port série : elle passe
+        # exclusivement par ce service, seul point d'entrée vers la
+        # radio dans toute la Suite. Si aucun service n'est fourni
+        # (lancement autonome), l'envoi à la radio affiche un message
+        # informatif plutôt que d'échouer silencieusement ou de planter.
+        self.radio_service = radio_service
 
         self.model = FrequencyTableModel()
 
@@ -95,7 +104,7 @@ class FrequencyBankWindow(BaseWindow):
         self.search_button.clicked.connect(self.search_frequency)
         self.search_edit.returnPressed.connect(self.search_frequency)
         self.refresh_button.clicked.connect(self.load_frequencies)
-        self.table.doubleClicked.connect(self.edit_frequency)
+        self.table.doubleClicked.connect(self.send_to_radio)
         self._wire_category_tree(self.category_tree)
 
         self.load_frequencies()
@@ -438,6 +447,63 @@ class FrequencyBankWindow(BaseWindow):
             return None
 
         return self.model.frequency(index.row())
+
+    def send_to_radio(self) -> None:
+        """
+        Envoie la fréquence sélectionnée à la radio via RadioService —
+        jamais directement via CATController. Frequency.modulation
+        (USB/LSB/AM/FM/CW/RTTY...) est envoyée si présente ;
+        Frequency.mode (FT8/SSB/CW...) reste une information de
+        classement métier, jamais transmise à la radio (voir
+        libraries/cat/mode.py : seules les modulations CI-V réelles y
+        sont reconnues). Tout échec affiche un message informatif,
+        sans jamais provoquer de plantage.
+        """
+
+        frequency = self._selected_frequency()
+
+        if frequency is None:
+            return
+
+        if self.radio_service is None:
+            QMessageBox.information(
+                self,
+                "Radio non disponible",
+                "Aucun service radio n'est relié à la Banque de fréquences.",
+            )
+            return
+
+        if not self.radio_service.connected:
+            QMessageBox.information(
+                self,
+                "Radio non connectée",
+                "La radio n'est pas connectée : impossible d'envoyer la fréquence.",
+            )
+            return
+
+        frequency_hz = int(round(frequency.frequency * 1_000_000))
+        frequency_ok = self.radio_service.set_frequency(frequency_hz)
+
+        modulation = (frequency.modulation or "").strip()
+        mode_ok = True
+        if modulation:
+            mode_ok = self.radio_service.set_mode(modulation)
+
+        if not frequency_ok or not mode_ok:
+            detail = f"fréquence {'OK' if frequency_ok else 'échec'}"
+            if modulation:
+                detail += f", modulation {'OK' if mode_ok else 'échec'}"
+            QMessageBox.information(self, "Envoi incomplet", f"La radio n'a pas tout accepté ({detail}).")
+            return
+
+        if modulation:
+            self.statusBar().showMessage(
+                f"Envoyé à la radio : {frequency.frequency:.6f} MHz / {modulation}", 3000
+            )
+        else:
+            self.statusBar().showMessage(
+                f"Envoyé à la radio : {frequency.frequency:.6f} MHz (aucune modulation renseignée)", 3000
+            )
 
     def _build_frequency(self, data: dict, existing: Frequency = None) -> Frequency:
         frequency = Frequency()

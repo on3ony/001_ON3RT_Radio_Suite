@@ -233,6 +233,51 @@ class RadioService(QObject):
             logger.exception(exc)
             self.error.emit(str(exc))
 
+    def set_frequency(self, frequency_hz: int) -> bool:
+        """
+        Envoie une fréquence à la radio (Hz). Ne fait rien si la radio
+        n'est pas connectée. L'état affiché (status.frequency) n'est
+        pas mis à jour de manière optimiste ici : il sera rafraîchi au
+        prochain cycle de poll(), qui reste l'unique source de vérité.
+        """
+
+        if not self.controller.connected:
+            logger.event("set_frequency() ignoré : controller.connected == False")
+            return False
+
+        logger.event(f"set_frequency() appelé : {frequency_hz} Hz")
+
+        try:
+            self.controller.set_frequency(frequency_hz)
+            return True
+        except Exception as exc:
+            self.status.last_error = str(exc)
+            logger.exception(exc)
+            self.error.emit(str(exc))
+            return False
+
+    def set_mode(self, mode: str) -> bool:
+        """
+        Envoie un mode à la radio (CI-V : USB/LSB/AM/FM/CW/RTTY/CW-R/
+        RTTY-R/DV uniquement — voir libraries/cat/mode.py). Ne fait
+        rien si la radio n'est pas connectée.
+        """
+
+        if not self.controller.connected:
+            logger.event("set_mode() ignoré : controller.connected == False")
+            return False
+
+        logger.event(f"set_mode() appelé : {mode}")
+
+        try:
+            self.controller.set_mode(mode)
+            return True
+        except Exception as exc:
+            self.status.last_error = str(exc)
+            logger.exception(exc)
+            self.error.emit(str(exc))
+            return False
+
     def info(self):
         return {
             "timestamp": time.time(),

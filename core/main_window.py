@@ -291,5 +291,8 @@ class MainWindow(QMainWindow):
             return CATServerWindow(service=self.application.radio_service)
         if key == "frequency_bank":
             from apps.frequency_bank.window import FrequencyBankWindow
-            return FrequencyBankWindow(frequency_service=self.application.frequency_service)
+            return FrequencyBankWindow(
+                frequency_service=self.application.frequency_service,
+                radio_service=self.application.radio_service,
+            )
         raise ValueError(f"Module inconnu : {key}")
