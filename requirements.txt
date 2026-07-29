@@ -1,0 +1,37 @@
+# ON3RT Radio Suite — dépendances d'exécution (pip)
+#
+# Liste établie par analyse statique (AST) de l'ensemble des fichiers
+# Python suivis par Git dans ce dépôt — aucune dépendance devinée ou
+# approximative. La bibliothèque standard Python et les modules
+# internes du projet (apps/, core/, libraries/) ne figurent pas ici.
+#
+# Uniquement les dépendances nécessaires à l'exécution de la Suite —
+# pytest (tests/) est une dépendance de développement, volontairement
+# exclue d'ici.
+#
+# Versions minimales (>=) : celles effectivement installées et
+# validées lors du développement de cette version de la Suite.
+
+# --- Interface graphique --------------------------------------------
+# Qt pour Python : fenêtre principale, tous les modules, tous les
+# panneaux du Dashboard. Dépendance structurante de l'ensemble de
+# l'application.
+PySide6>=6.11.1
+
+# --- Communication série (CAT) --------------------------------------
+# Communication CAT/CI-V avec la radio (apps/cat_server,
+# apps/radio_control, libraries/cat/serial_transport.py). Le paquet
+# pip s'appelle "pyserial" ; le code l'importe sous le nom "serial".
+pyserial>=3.5
+
+# --- Réseau -----------------------------------------------------------
+# Client QRZ.com XML (libraries/qrz/client.py), utilisé par le Logbook
+# pour la recherche d'indicatifs.
+requests>=2.32.5
+
+# --- Fonctionnalité optionnelle ---------------------------------------
+# Affichage CPU/RAM dans la barre d'état (libraries/ui/components/
+# statusbar.py). Import protégé par un bloc try/except dans le code :
+# la Suite démarre et fonctionne normalement si ce paquet est absent,
+# seul cet indicateur reste alors masqué.
+psutil>=7.2.2
