@@ -1,5 +1,5 @@
 {
-  "timestamp": 1785307065.6888533,
+  "timestamp": 1785309224.931966,
   "connected": true,
   "model": "IC-7300",
   "port": "COM3",
@@ -9,8 +9,8 @@
   "band": "40m",
   "mode": "LSB",
   "utc_date": "2026-07-29",
-  "utc_time": "06:37:45",
+  "utc_time": "07:13:44",
   "adif_date": "20260729",
-  "adif_time": "063745",
+  "adif_time": "071344",
   "ptt": false
 }
