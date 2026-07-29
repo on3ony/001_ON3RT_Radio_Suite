@@ -47,6 +47,7 @@ Desktop.ini
 # ON3RT Radio Suite
 # ==========================
 data/*.db
+data/archives/
 config/qrz.json
 
 # Temporary packages
