@@ -7,9 +7,11 @@ Fenêtre du module.
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
     QHBoxLayout,
     QHeaderView,
     QInputDialog,
+    QLabel,
     QLineEdit,
     QMenu,
     QMessageBox,
@@ -24,10 +26,11 @@ from libraries.ui import colors
 from libraries.ui.base_window import BaseWindow
 
 from apps.frequency_bank.category_node import CategoryNode
-from apps.frequency_bank.category_provider import DefaultCategoryProvider
 from apps.frequency_bank.category_store import CategoryStore
 from apps.frequency_bank.category_tree import build_category_tree, frequencies_for_category
 from apps.frequency_bank.frequency_dialog import FrequencyDialog
+from apps.frequency_bank.frequency_profile_manager import FrequencyProfileManager
+from apps.frequency_bank.frequency_profile_provider import DefaultFrequencyProfileProvider
 from apps.frequency_bank.frequency_service import FrequencyService
 from apps.frequency_bank.models import Frequency
 from apps.frequency_bank.table_model import FrequencyTableModel
@@ -90,11 +93,12 @@ class FrequencyBankWindow(BaseWindow):
 
         self.model = FrequencyTableModel()
 
-        # Gestion des catégories : purement en mémoire pour l'instant
-        # (DefaultCategoryProvider), sans effet sur le tableau. Voir le
-        # bloc CategoryNode/CategoryProvider/CategoryStore en tête de
-        # fichier.
-        self.category_store = CategoryStore(DefaultCategoryProvider())
+        # Gestion des profils : point d'entrée unique pour le profil actif
+        # et son CategoryStore associé (voir frequency_profile_manager.py).
+        # self.category_store (propriété ci-dessous) délègue toujours au
+        # profil actif — aucune autre méthode de cette classe n'a besoin
+        # de connaître l'existence des profils.
+        self.profile_manager = FrequencyProfileManager(DefaultFrequencyProfileProvider())
 
         self._build_content()
 
@@ -106,14 +110,45 @@ class FrequencyBankWindow(BaseWindow):
         self.refresh_button.clicked.connect(self.load_frequencies)
         self.table.doubleClicked.connect(self.send_to_radio)
         self._wire_category_tree(self.category_tree)
+        self.profile_combo.currentIndexChanged.connect(self._on_profile_changed)
 
         self.load_frequencies()
+
+    @property
+    def category_store(self) -> CategoryStore:
+        """
+        Toujours le CategoryStore du profil actif. Toutes les méthodes
+        existantes qui utilisent self.category_store (sélection,
+        ajout/renommage/déplacement/suppression de catégories, filtrage
+        des fréquences...) reflètent donc automatiquement le profil
+        actif, sans avoir à connaître l'existence des profils.
+        """
+
+        return self.profile_manager.active_category_store
 
     # ------------------------------------------------------------------
     # Construction de l'interface
     # ------------------------------------------------------------------
 
     def _build_content(self):
+        # ----- Profil : affiche le profil actif, prépare la sélection
+        # future (un seul profil pour l'instant — voir
+        # frequency_profile.py/frequency_profile_provider.py). Aucun
+        # effet sur les données affichées tant qu'une seule banque
+        # existe réellement. -----
+        profile_row = QHBoxLayout()
+        profile_row.setSpacing(8)
+
+        profile_label = QLabel("Profil :")
+
+        self.profile_combo = QComboBox()
+        for profile in self.profile_manager.profiles:
+            self.profile_combo.addItem(profile.name)
+
+        profile_row.addWidget(profile_label)
+        profile_row.addWidget(self.profile_combo)
+        profile_row.addStretch()
+
         # ----- Recherche : ligne dédiée, volontairement plus visible -----
         search_row = QHBoxLayout()
         search_row.setSpacing(8)
@@ -178,7 +213,10 @@ class FrequencyBankWindow(BaseWindow):
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)  # Description absorbe l'espace restant
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)  # Description absorbe l'espace restant
+
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_table_menu)
 
         self.category_tree = build_category_tree(self.category_store.roots, self.category_store.selected_id)
 
@@ -195,9 +233,34 @@ class FrequencyBankWindow(BaseWindow):
         self.splitter.addWidget(self.table)
         self.splitter.setSizes([220, 900])
 
+        self.content_layout.addLayout(profile_row)
         self.content_layout.addLayout(search_row)
         self.content_layout.addLayout(actions_row)
         self.content_layout.addWidget(self.splitter)
+
+    def _on_profile_changed(self, index: int) -> None:
+        """
+        Change réellement le profil actif : le panneau de catégories et
+        le tableau des fréquences sont rafraîchis pour refléter le
+        CategoryStore du nouveau profil actif (self.category_store
+        délègue à FrequencyProfileManager, voir la propriété
+        ci-dessus). Avec un seul profil disponible aujourd'hui, ceci
+        reconstruit le même arbre avec la même sélection — comportement
+        observable strictement inchangé.
+        """
+
+        profiles = self.profile_manager.profiles
+
+        if not (0 <= index < len(profiles)):
+            return
+
+        profile = profiles[index]
+        self.profile_manager.set_active_profile(profile.id)
+
+        self._refresh_category_tree()
+        self.load_frequencies()
+
+        self.statusBar().showMessage(f"Profil actif : {profile.name}", 3000)
 
     def _on_category_selected(self, item: QTreeWidgetItem, column: int) -> None:
         node_id = item.data(0, Qt.ItemDataRole.UserRole)
@@ -447,6 +510,45 @@ class FrequencyBankWindow(BaseWindow):
             return None
 
         return self.model.frequency(index.row())
+
+    def _show_table_menu(self, pos) -> None:
+        index = self.table.indexAt(pos)
+
+        if not index.isValid():
+            return
+
+        self.table.selectRow(index.row())
+        frequency = self._selected_frequency()
+
+        if frequency is None:
+            return
+
+        menu = QMenu(self)
+        label = "Retirer des favoris" if frequency.favorite else "Marquer comme favori"
+        toggle_action = menu.addAction(label)
+
+        chosen = menu.exec(self.table.viewport().mapToGlobal(pos))
+
+        if chosen is toggle_action:
+            self.toggle_favorite()
+
+    def toggle_favorite(self) -> None:
+        """
+        Marque ou retire la fréquence sélectionnée des favoris.
+        Persiste via FrequencyService.update() (déjà existant, aucune
+        modification du service ni du modèle) et rafraîchit
+        immédiatement l'affichage — en respectant le filtre de
+        catégorie actif, comme toute autre mise à jour.
+        """
+
+        frequency = self._selected_frequency()
+
+        if frequency is None:
+            return
+
+        frequency.favorite = not frequency.favorite
+        self.service.update(frequency)
+        self.load_frequencies()
 
     def send_to_radio(self) -> None:
         """

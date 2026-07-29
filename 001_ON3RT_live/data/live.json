@@ -1,16 +1,16 @@
 {
-  "timestamp": 1785314858.444096,
+  "timestamp": 1785322625.5619195,
   "connected": true,
   "model": "IC-7300",
   "port": "COM3",
   "baudrate": 19200,
-  "frequency": 7074000,
-  "frequency_hz": 7074000,
-  "band": "40m",
+  "frequency": 14137000,
+  "frequency_hz": 14137000,
+  "band": "20m",
   "mode": "USB",
   "utc_date": "2026-07-29",
-  "utc_time": "08:47:38",
+  "utc_time": "10:57:05",
   "adif_date": "20260729",
-  "adif_time": "084738",
+  "adif_time": "105705",
   "ptt": false
 }
