@@ -37,6 +37,25 @@ def no_network_side_effects(monkeypatch):
     monkeypatch.setattr(application_module.PropagationService, "start", lambda self: None)
 
 
+@pytest.fixture(autouse=True)
+def isolated_contest_assistant_paths(tmp_path, monkeypatch):
+    """
+    ContestMessageService.__init__() sauvegarde immédiatement si son
+    fichier de configuration n'existe pas encore (chargement du seed) :
+    jamais le vrai data/contest_assistant.json du dépôt pendant les tests.
+    """
+    from apps.contest_assistant.message_service import ContestMessageService
+
+    config_path = tmp_path / "contest_assistant.json"
+    seed_path = tmp_path / "contest_assistant_seed.json"
+
+    monkeypatch.setattr(
+        application_module,
+        "ContestMessageService",
+        lambda: ContestMessageService(config_path=config_path, seed_path=seed_path),
+    )
+
+
 @pytest.fixture
 def application(qapp):
     from core.application import Application

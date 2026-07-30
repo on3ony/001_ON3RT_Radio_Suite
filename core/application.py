@@ -17,6 +17,7 @@ Responsabilités :
 from PySide6.QtCore import QSettings
 
 from apps.cat_server.radio_service import RadioService
+from apps.contest_assistant.message_service import ContestMessageService
 from apps.frequency_bank.frequency_service import FrequencyService
 from apps.settings.settings_service import SettingsService
 from core.module_manager import ModuleManager
@@ -91,6 +92,14 @@ class Application:
         # construction et interrogé à la demande par la fenêtre du
         # module.
         self.settings_service = SettingsService()
+
+        # Service partagé du module Contest Assistant : modèles de
+        # message, langue, nom du concours, numéro progressif et
+        # historique. Aucune dépendance à station_service ni à aucun
+        # autre service (voir sa conception — %MYCALL% est résolu par
+        # la fenêtre, pas par ce service). Comme settings_service
+        # ci-dessus, aucun start() n'est nécessaire.
+        self.contest_message_service = ContestMessageService()
 
     # ---------------------------------------------------------
     # Service CAT (arrière-plan)

@@ -1,22 +1,19 @@
 """
-Tests de l'intégration de SettingsService dans core/application.py.
+Tests de l'intégration de ContestMessageService dans core/application.py.
 
-Construit une vraie instance d'Application, en neutralisant les seuls
-effets de bord réseau/série de son constructeur (connexion DX Cluster,
-démarrage des sondages météo/propagation) pour ne jamais toucher au
-matériel ou au réseau pendant les tests — même principe que les
-isolations déjà utilisées aux étapes précédentes (QSettings, qrz.json).
-
-_start_radio_service() lit QSettings("ON3RT","CATServer") : isolée ici
-aussi, pour ne jamais dépendre d'un port CAT réellement configuré sur
-la machine qui exécute les tests (et donc ne jamais tenter une vraie
-connexion série).
+Construit une vraie instance d'Application (mêmes effets de bord
+réseau/série neutralisés que pour Settings/BandMap). ContestMessageService
+écrit data/contest_assistant.json dès sa construction si le fichier
+n'existe pas encore (chargement du seed) : ses chemins sont donc
+systématiquement isolés vers un dossier temporaire, pour ne jamais
+créer ou modifier le vrai fichier du dépôt pendant les tests.
 """
 
 import pytest
 from PySide6.QtCore import QSettings
 
 import core.application as application_module
+from apps.contest_assistant.message_service import ContestMessageService
 
 
 @pytest.fixture(scope="module")
@@ -38,12 +35,6 @@ def isolated_cat_settings(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_network_side_effects(monkeypatch):
-    """
-    Neutralise les effets de bord réseau du constructeur d'Application
-    (connexion DX Cluster, démarrage des sondages météo/propagation) :
-    hors périmètre de cette étape, et ces tests ne doivent jamais
-    toucher au réseau.
-    """
     monkeypatch.setattr(application_module.DXClusterService, "connect", lambda self: None)
     monkeypatch.setattr(application_module.WeatherService, "start", lambda self: None)
     monkeypatch.setattr(application_module.PropagationService, "start", lambda self: None)
@@ -56,8 +47,6 @@ def isolated_contest_assistant_paths(tmp_path, monkeypatch):
     fichier de configuration n'existe pas encore (chargement du seed) :
     jamais le vrai data/contest_assistant.json du dépôt pendant les tests.
     """
-    from apps.contest_assistant.message_service import ContestMessageService
-
     config_path = tmp_path / "contest_assistant.json"
     seed_path = tmp_path / "contest_assistant_seed.json"
 
@@ -76,27 +65,18 @@ def application(qapp):
     app.close_all()
 
 
-def test_application_builds_a_real_settings_service(application):
-    from apps.settings.settings_service import SettingsService
-
-    assert isinstance(application.settings_service, SettingsService)
+def test_application_builds_a_real_contest_message_service(application):
+    assert isinstance(application.contest_message_service, ContestMessageService)
 
 
-def test_settings_service_uses_its_own_default_config_path(application):
-    """
-    Non-invention : Application ne passe aucun config_path personnalisé
-    -> SettingsService utilise exactement le même config/settings.json
-    par défaut que s'il était instancié seul.
-    """
-    from apps.settings.settings_service import DEFAULT_CONFIG_PATH
+def test_contest_message_service_has_its_expected_default_state(application):
+    service = application.contest_message_service
 
-    assert application.settings_service._path == DEFAULT_CONFIG_PATH
-
-
-def test_settings_service_has_its_expected_default_sections(application):
-    assert application.settings_service.network["hamqth_username"] == ""
-    assert application.settings_service.services["dxcluster_host"] == "dxfun.com"
-    assert application.settings_service.services["dxcluster_port"] == 8000
+    assert service.contest_name == ""
+    assert service.language == "FR"
+    assert service.serial == 0
+    assert service.history == []
+    assert service.templates == []  # aucun fichier seed dans le dossier isolé de ce test
 
 
 def test_existing_services_are_still_constructed(application):
@@ -104,6 +84,7 @@ def test_existing_services_are_still_constructed(application):
 
     from apps.cat_server.radio_service import RadioService
     from apps.frequency_bank.frequency_service import FrequencyService
+    from apps.settings.settings_service import SettingsService
     from libraries.dxcluster.dxcluster_service import DXClusterService
     from libraries.propagation.propagation_service import PropagationService
     from libraries.station.station_service import StationService
@@ -115,6 +96,7 @@ def test_existing_services_are_still_constructed(application):
     assert isinstance(application.weather_service, WeatherService)
     assert isinstance(application.propagation_service, PropagationService)
     assert isinstance(application.frequency_service, FrequencyService)
+    assert isinstance(application.settings_service, SettingsService)
 
 
 def test_module_manager_and_info_are_unaffected(application):

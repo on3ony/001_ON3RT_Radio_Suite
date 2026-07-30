@@ -1,0 +1,73 @@
+{
+  "contest_name": "",
+  "language": "FR",
+  "templates": [
+    {
+      "id": 6,
+      "label": "CQ",
+      "text_fr": "CQ Concours de %MYCALL%",
+      "text_en": "CQ Contest %MYCALL%"
+    },
+    {
+      "id": 9,
+      "label": "QRZ",
+      "text_fr": "QRZ de %MYCALL%",
+      "text_en": "QRZ de %MYCALL%"
+    },
+    {
+      "id": 8,
+      "label": "Réponse",
+      "text_fr": "%CALL% de %MYCALL%",
+      "text_en": "%CALL% from %MYCALL%"
+    },
+    {
+      "id": 2,
+      "label": "Échange",
+      "text_fr": "%RST% %SERIAL%",
+      "text_en": "%RST% %SERIAL%"
+    },
+    {
+      "id": 7,
+      "label": "Mon indicatif",
+      "text_fr": "%MYCALL%",
+      "text_en": "%MYCALL%"
+    },
+    {
+      "id": 10,
+      "label": "TU 73",
+      "text_fr": "TU 73 %CALL%",
+      "text_en": "TU 73 %CALL%"
+    },
+    {
+      "id": 3,
+      "label": "Merci",
+      "text_fr": "Merci %CALL%, bonne continuation",
+      "text_en": "Thank you %CALL%, good luck"
+    },
+    {
+      "id": 5,
+      "label": "QSL",
+      "text_fr": "QSL, merci",
+      "text_en": "QSL, thanks"
+    },
+    {
+      "id": 4,
+      "label": "Répétition",
+      "text_fr": "Répétez svp",
+      "text_en": "Please repeat"
+    }
+  ],
+  "serial": 2,
+  "history": [
+    {
+      "timestamp": "2026-07-30T07:27:09Z",
+      "serial": 1,
+      "resolved_text": "CQ Concours de ON3RT"
+    },
+    {
+      "timestamp": "2026-07-30T08:56:56Z",
+      "serial": 2,
+      "resolved_text": " 002"
+    }
+  ]
+}

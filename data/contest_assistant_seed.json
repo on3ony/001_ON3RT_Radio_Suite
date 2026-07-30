@@ -1,0 +1,47 @@
+[
+    {
+        "label": "CQ",
+        "text_fr": "CQ Concours de %MYCALL%",
+        "text_en": "CQ Contest %MYCALL%"
+    },
+    {
+        "label": "QRZ",
+        "text_fr": "QRZ de %MYCALL%",
+        "text_en": "QRZ de %MYCALL%"
+    },
+    {
+        "label": "Réponse",
+        "text_fr": "%CALL% de %MYCALL%",
+        "text_en": "%CALL% from %MYCALL%"
+    },
+    {
+        "label": "Échange",
+        "text_fr": "%RST% %SERIAL%",
+        "text_en": "%RST% %SERIAL%"
+    },
+    {
+        "label": "Mon indicatif",
+        "text_fr": "%MYCALL%",
+        "text_en": "%MYCALL%"
+    },
+    {
+        "label": "TU 73",
+        "text_fr": "TU 73 %CALL%",
+        "text_en": "TU 73 %CALL%"
+    },
+    {
+        "label": "Merci",
+        "text_fr": "Merci %CALL%, bonne continuation",
+        "text_en": "Thank you %CALL%, good luck"
+    },
+    {
+        "label": "QSL",
+        "text_fr": "QSL, merci",
+        "text_en": "QSL, thanks"
+    },
+    {
+        "label": "Répétition",
+        "text_fr": "Répétez svp",
+        "text_en": "Please repeat"
+    }
+]

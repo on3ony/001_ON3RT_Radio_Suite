@@ -48,6 +48,7 @@ _MENU_ENTRIES = (
 
 _MODULES = (
     ("trophy", "Contest", "Journal de concours, calcul de points, export Cabrillo.", "contest"),
+    ("file", "Contest Assistant", "Messages de concours bilingues, numérotation automatique.", "contest_assistant"),
     ("antenna", "Radio Control", "Pilotage CAT direct, VFO, filtres, préamplis.", "radio_control"),
     ("book", "Logbook", "Journal général des contacts et import ADIF.", "logbook"),
     ("broadcast", "DX Cluster", "Flux de spots en direct, filtres par bande et mode.", "dxcluster"),
@@ -71,6 +72,7 @@ _IMPLEMENTED = {
     "scanner",
     "settings",
     "bandmap",
+    "contest_assistant",
 }
 
 
@@ -332,5 +334,11 @@ class MainWindow(QMainWindow):
             return BandMapWindow(
                 radio_service=self.application.radio_service,
                 dxcluster_service=self.application.dxcluster_service,
+            )
+        if key == "contest_assistant":
+            from apps.contest_assistant.window import ContestAssistantWindow
+            return ContestAssistantWindow(
+                message_service=self.application.contest_message_service,
+                station_service=self.application.station_service,
             )
         raise ValueError(f"Module inconnu : {key}")

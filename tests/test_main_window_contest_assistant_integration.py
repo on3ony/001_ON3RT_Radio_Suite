@@ -1,16 +1,18 @@
 """
-Tests de l'intégration du module BandMap dans core/main_window.py.
+Tests de l'intégration du module Contest Assistant dans core/main_window.py.
 
 Construit une vraie instance d'Application (mêmes effets de bord
-réseau/série neutralisés que pour Settings) puis une vraie MainWindow,
-pour vérifier que "bandmap" est bien ouvrable et correctement câblé,
-sans rien casser des modules déjà implémentés.
+réseau/série neutralisés que pour Settings/BandMap, y compris
+l'isolation de ContestMessageService) puis une vraie MainWindow, pour
+vérifier que "contest_assistant" est bien ouvrable et correctement
+câblé, sans rien casser des modules déjà implémentés.
 """
 
 import pytest
 from PySide6.QtCore import QSettings
 
 import core.application as application_module
+from apps.contest_assistant.message_service import ContestMessageService
 
 
 @pytest.fixture(scope="module")
@@ -44,8 +46,6 @@ def isolated_contest_assistant_paths(tmp_path, monkeypatch):
     fichier de configuration n'existe pas encore (chargement du seed) :
     jamais le vrai data/contest_assistant.json du dépôt pendant les tests.
     """
-    from apps.contest_assistant.message_service import ContestMessageService
-
     config_path = tmp_path / "contest_assistant.json"
     seed_path = tmp_path / "contest_assistant_seed.json"
 
@@ -72,28 +72,28 @@ def main_window(qapp, application):
     window.close()
 
 
-def test_bandmap_is_registered_as_implemented(main_window):
+def test_contest_assistant_is_registered_as_implemented(main_window):
     from core.main_window import _IMPLEMENTED
 
-    assert "bandmap" in _IMPLEMENTED
+    assert "contest_assistant" in _IMPLEMENTED
 
 
-def test_modules_tuple_lists_bandmap_exactly_once(main_window):
+def test_modules_tuple_lists_contest_assistant_exactly_once(main_window):
     from core.main_window import _MODULES
 
     keys = [key for (_icon, _title, _desc, key) in _MODULES]
-    assert keys.count("bandmap") == 1
+    assert keys.count("contest_assistant") == 1
 
 
-def test_create_module_window_returns_a_bandmap_window_with_injected_services(main_window, application):
-    from apps.bandmap.window import BandMapWindow
+def test_create_module_window_returns_a_contest_assistant_window_with_injected_services(main_window, application):
+    from apps.contest_assistant.window import ContestAssistantWindow
 
-    window = main_window._create_module_window("bandmap")
+    window = main_window._create_module_window("contest_assistant")
 
     try:
-        assert isinstance(window, BandMapWindow)
-        assert window.radio_service is application.radio_service
-        assert window.dxcluster_service is application.dxcluster_service
+        assert isinstance(window, ContestAssistantWindow)
+        assert window.message_service is application.contest_message_service
+        assert window.station_service is application.station_service
     finally:
         window.close()
 
@@ -101,13 +101,17 @@ def test_create_module_window_returns_a_bandmap_window_with_injected_services(ma
 def test_other_implemented_modules_still_build_correctly(main_window):
     """Non-régression : les autres modules déjà implémentés s'ouvrent toujours."""
 
+    from apps.bandmap.window import BandMapWindow
     from apps.settings.window import SettingsWindow
 
-    window = main_window._create_module_window("settings")
+    bandmap_window = main_window._create_module_window("bandmap")
+    settings_window = main_window._create_module_window("settings")
     try:
-        assert isinstance(window, SettingsWindow)
+        assert isinstance(bandmap_window, BandMapWindow)
+        assert isinstance(settings_window, SettingsWindow)
     finally:
-        window.close()
+        bandmap_window.close()
+        settings_window.close()
 
 
 def test_unknown_module_key_still_raises(main_window):
