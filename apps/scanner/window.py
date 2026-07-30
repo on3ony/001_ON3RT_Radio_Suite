@@ -6,6 +6,7 @@ Fenêtre du module.
 
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
+    QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
@@ -24,6 +25,31 @@ from libraries.ui.base_window import BaseWindow
 
 from apps.scanner.scanner_engine import ScannerEngine
 from apps.scanner.scanner_model import ScannerModel
+
+# Bibliothèque de plages de scan proposées dans le raccourci "Plage de
+# scan" (pur confort de saisie UI — aucun lien avec FrequencyService
+# ni avec le plan de bandes de BandManager). Chaque entrée : (catégorie,
+# libellé, début MHz, fin MHz). Les entrées d'une même catégorie
+# doivent rester groupées (elles sont affichées sous un même en-tête,
+# dans l'ordre du tuple). Ajouter une bande, ou une nouvelle catégorie
+# (PMR446, Marine, WARC, Broadcast FM...), ne demande que d'ajouter des
+# lignes ici : ni le QComboBox ni le slot de sélection n'ont besoin
+# d'être modifiés.
+_SCAN_BANDS = (
+    ("Radioamateur", "80 m", 3.500, 3.800),
+    ("Radioamateur", "40 m CW", 7.000, 7.100),
+    ("Radioamateur", "40 m SSB", 7.100, 7.200),
+    ("Radioamateur", "30 m", 10.100, 10.150),
+    ("Radioamateur", "20 m", 14.000, 14.350),
+    ("Radioamateur", "15 m", 21.000, 21.450),
+    ("Radioamateur", "10 m", 28.000, 29.700),
+    ("Radioamateur", "2 m", 144.000, 146.000),
+    ("Radioamateur", "70 cm", 430.000, 440.000),
+    ("Citizen Band", "CB CEPT (40 ch)", 26.965, 27.405),
+    ("Citizen Band", "CB Export basse", 25.615, 26.955),
+    ("Citizen Band", "CB Export haute", 27.415, 28.305),
+    ("Aviation", "Airband VHF", 118.000, 136.975),
+)
 
 
 class ScannerWindow(BaseWindow):
@@ -131,6 +157,8 @@ class ScannerWindow(BaseWindow):
         params_group = QGroupBox("Paramètres de balayage")
         params_form = QFormLayout(params_group)
 
+        self.combo_band = self._build_band_combo()
+
         self.spin_start = QDoubleSpinBox()
         self.spin_start.setDecimals(6)
         self.spin_start.setRange(0.000001, 999.999999)
@@ -155,6 +183,7 @@ class ScannerWindow(BaseWindow):
 
         self.btn_apply = QPushButton("Appliquer")
 
+        params_form.addRow("Plage de scan", self.combo_band)
         params_form.addRow("Début", self.spin_start)
         params_form.addRow("Fin", self.spin_stop)
         params_form.addRow("Pas", self.spin_step)
@@ -186,12 +215,43 @@ class ScannerWindow(BaseWindow):
         self.content_layout.addWidget(params_group)
         self.content_layout.addWidget(memories_group)
 
+    def _build_band_combo(self) -> QComboBox:
+        """
+        Construit le QComboBox "Plage de scan" à partir de _SCAN_BANDS,
+        en insérant un en-tête non sélectionnable à chaque changement
+        de catégorie. Purement piloté par les données : ajouter une
+        entrée (ou une nouvelle catégorie) à _SCAN_BANDS suffit, cette
+        méthode n'a jamais besoin d'être modifiée.
+        """
+
+        combo = QComboBox()
+        combo.addItem("— Choisir une bande —", None)
+
+        model = combo.model()
+        last_category = None
+
+        for category, label, start_mhz, stop_mhz in _SCAN_BANDS:
+            if category != last_category:
+                combo.addItem(category, None)
+                header_item = model.item(combo.count() - 1)
+                header_item.setFlags(
+                    header_item.flags()
+                    & ~(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+                )
+                last_category = category
+
+            text = f"    {label:<17}({start_mhz:.3f} - {stop_mhz:.3f} MHz)"
+            combo.addItem(text, (start_mhz, stop_mhz))
+
+        return combo
+
     def _connect_signals(self):
         self.btn_start.clicked.connect(self._on_start_clicked)
         self.btn_stop.clicked.connect(self._on_stop_clicked)
         self.btn_step_up.clicked.connect(lambda: self._manual_step("UP"))
         self.btn_step_down.clicked.connect(lambda: self._manual_step("DOWN"))
         self.btn_apply.clicked.connect(self._apply_settings)
+        self.combo_band.currentIndexChanged.connect(self._on_band_selected)
         self.memory_list.itemDoubleClicked.connect(self._on_memory_double_clicked)
 
         self.engine.frequency_changed.connect(self._update_frequency_display)
@@ -259,6 +319,24 @@ class ScannerWindow(BaseWindow):
     # ------------------------------------------------------------------
     # Paramètres
     # ------------------------------------------------------------------
+
+    def _on_band_selected(self, index: int) -> None:
+        """
+        Raccourci de saisie pur : remplit Début/Fin avec la plage
+        choisie. Ne touche jamais à ScannerModel/ScannerEngine, ne
+        lance jamais de balayage — comme pour une saisie manuelle dans
+        ces mêmes champs, seul le bouton "Appliquer" (_apply_settings)
+        commet une valeur.
+        """
+
+        data = self.combo_band.itemData(index)
+
+        if data is None:
+            return
+
+        start_mhz, stop_mhz = data
+        self.spin_start.setValue(start_mhz)
+        self.spin_stop.setValue(stop_mhz)
 
     def _apply_settings(self) -> None:
         start_hz = int(round(self.spin_start.value() * 1_000_000))
