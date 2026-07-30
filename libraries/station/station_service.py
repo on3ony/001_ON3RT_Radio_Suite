@@ -3,9 +3,9 @@ ON3RT Radio Suite
 libraries/station/station_service.py
 
 Source de vérité unique pour l'identité et les caractéristiques
-permanentes de la station : indicatif, locator, position, QTH,
-altitude, antennes déclarées, interfaces déclarées, préférences
-communes.
+permanentes de la station : indicatif, nom de l'opérateur, locator,
+position, QTH, altitude, antennes déclarées, interfaces déclarées,
+préférences communes.
 
 Ce que StationService NE contient JAMAIS :
     - les paramètres de connexion CAT (port, baudrate...) : ils
@@ -44,6 +44,7 @@ class StationService:
         self._path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
 
         self.callsign = ""
+        self.operator_name = ""
         self.locator = ""
         self.latitude = None
         self.longitude = None
@@ -77,6 +78,7 @@ class StationService:
             return
 
         self.callsign = data.get("callsign", self.callsign)
+        self.operator_name = data.get("operator_name", self.operator_name)
         self.locator = data.get("locator", self.locator)
         self.latitude = data.get("latitude", self.latitude)
         self.longitude = data.get("longitude", self.longitude)
@@ -112,6 +114,7 @@ class StationService:
 
         return {
             "callsign": self.callsign,
+            "operator_name": self.operator_name,
             "locator": self.locator,
             "latitude": self.latitude,
             "longitude": self.longitude,

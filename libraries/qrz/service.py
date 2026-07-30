@@ -37,6 +37,32 @@ def _load_config():
         return json.load(f)
 
 
+def save_credentials(username: str, password: str) -> None:
+    """
+    Écrit config/qrz.json (écriture atomique : fichier temporaire puis
+    remplacement), seul emplacement des identifiants QRZ. Réinitialise
+    le client mis en cache pour que le prochain appel à client()/
+    lookup() se reconnecte avec les nouveaux identifiants, sans
+    redémarrage de la suite.
+    """
+
+    global _client
+
+    cfg = _config_file()
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+
+    tmp_path = cfg.with_suffix(".tmp")
+
+    tmp_path.write_text(
+        json.dumps({"username": username, "password": password}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    tmp_path.replace(cfg)
+
+    _client = None
+
+
 def client() -> QRZClient:
     global _client
 

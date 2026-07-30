@@ -1,7 +1,12 @@
 {
-    "callsign": "ON3RT",
-    "locator": "JO20EU",
-    "qth": "Bruxelles",
-    "latitude": 50.90,
-    "longitude": 4.42
+  "callsign": "ON3RT",
+  "operator_name": "Pascal",
+  "locator": "JO20EU",
+  "latitude": 50.9,
+  "longitude": 4.42,
+  "qth": "Bruxelles-Evere",
+  "altitude": 0,
+  "antennas": [],
+  "interfaces": {},
+  "timezone": "UTC"
 }

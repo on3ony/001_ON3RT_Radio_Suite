@@ -1,0 +1,18 @@
+{
+  "network": {
+    "hamqth_username": "",
+    "hamqth_password": "",
+    "lotw_username": "",
+    "lotw_password": "",
+    "eqsl_username": "on3rt",
+    "eqsl_password": "53aALE78",
+    "clublog_email": "",
+    "clublog_password": ""
+  },
+  "services": {
+    "open_meteo_poll_interval_ms": 600000,
+    "hamqsl_poll_interval_ms": 3600000,
+    "dxcluster_host": "dxfun.com",
+    "dxcluster_port": 8000
+  }
+}

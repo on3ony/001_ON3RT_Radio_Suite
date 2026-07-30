@@ -34,7 +34,7 @@ from libraries.ui.components.sidebar import Sidebar
 from libraries.ui.components.statusbar import SuiteStatusBar
 
 from apps.dashboard.dashboard_page import DashboardPage
-from core.station_page import StationPage
+from core.station_page import StationPage, SECTION_TITLES
 
 _MENU_ENTRIES = (
     ("Fichier", "file"),
@@ -60,7 +60,16 @@ _MODULES = (
 )
 
 # Modules disposant deja d'une fenetre reelle dans le projet.
-_IMPLEMENTED = {"contest", "radio_control", "logbook", "cat_server", "frequency_bank", "dxcluster", "scanner"}
+_IMPLEMENTED = {
+    "contest",
+    "radio_control",
+    "logbook",
+    "cat_server",
+    "frequency_bank",
+    "dxcluster",
+    "scanner",
+    "settings",
+}
 
 
 class MainWindow(QMainWindow):
@@ -161,7 +170,9 @@ class MainWindow(QMainWindow):
         )
         self.applications_page = self._build_applications_page()
         self.station_page = StationPage()
-        self.station_page.opened.connect(lambda key: self._open_module(key, "CAT Server"))
+        self.station_page.opened.connect(
+            lambda key: self._open_module(key, SECTION_TITLES.get(key, key))
+        )
 
         self.stack.addWidget(self.dashboard_page)
         self.stack.addWidget(self.applications_page)
@@ -306,5 +317,12 @@ class MainWindow(QMainWindow):
             return ScannerWindow(
                 radio_service=self.application.radio_service,
                 frequency_service=self.application.frequency_service,
+            )
+        if key == "settings":
+            from apps.settings.window import SettingsWindow
+            return SettingsWindow(
+                station_service=self.application.station_service,
+                settings_service=self.application.settings_service,
+                radio_service=self.application.radio_service,
             )
         raise ValueError(f"Module inconnu : {key}")

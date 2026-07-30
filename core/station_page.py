@@ -32,10 +32,21 @@ _SECTIONS = (
     ("cpu", "Radio", "Modèle, port et vitesse de communication.", None),
     ("antenna", "CAT", "État du pont CAT, réglages de polling.", "cat_server"),
     ("plug", "Ports COM", "Détection et affectation des ports série.", None),
-    ("settings", "Paramètres", "Préférences générales de la suite.", None),
+    ("settings", "Paramètres", "Préférences générales de la suite.", "settings"),
     ("server", "Informations système", "Version, environnement, journaux.", None),
     ("tool", "Diagnostics", "Tests de connexion et auto-diagnostic.", None),
 )
+
+# Correspondance clé de module -> titre affiché sur la carte Station,
+# dérivée de _SECTIONS (jamais un second libellé codé en dur ailleurs) :
+# permet à MainWindow._open_module() d'afficher le bon titre dans son
+# message "module bientôt disponible" quel que soit le module ouvert
+# depuis cette page.
+SECTION_TITLES = {
+    module_key: title
+    for (_icon, title, _description, module_key) in _SECTIONS
+    if module_key is not None
+}
 
 
 class _SectionCard(QFrame):

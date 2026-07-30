@@ -1,0 +1,622 @@
+Structure du dossier pour le volume Elements
+Le numéro de série du volume est 00000069 30FD:42D6
+D:.
+¦   .gitignore
+¦   arborescence.txt
+¦   audit_compile.txt
+¦   civ_diagnostic.py
+¦   int
+¦   launcher.py
+¦   LICENSE
+¦   list[QSO]
+¦   ON3RT_Radio_Suite.bat
+¦   ON3RT_Radio_Suite_Documentation.pdf
+¦   README.md
+¦   requirements.txt
+¦   structure.txt
+¦   test_civ.py
+¦   vspe_21_07_2026.vspe
+¦   
++---.claude
+¦       settings.local.json
+¦       
++---.pytest_cache
+¦   ¦   .gitignore
+¦   ¦   CACHEDIR.TAG
+¦   ¦   README.md
+¦   ¦   
+¦   +---v
+¦       +---cache
+¦               lastfailed
+¦               nodeids
+¦               
++---001_ON3RT_live
+¦   ¦   config.py
+¦   ¦   dashboard.py
+¦   ¦   main.py
+¦   ¦   server.py
+¦   ¦   theme.py
+¦   ¦   __init__.py
+¦   ¦   
+¦   +---assets
+¦   ¦   +---css
+¦   ¦   +---icons
+¦   +---data
+¦   ¦       live.json
+¦   ¦       
+¦   +---modules
+¦   ¦       dxcluster.py
+¦   ¦       logbook.py
+¦   ¦       propagation.py
+¦   ¦       radio.py
+¦   ¦       wsjtx.py
+¦   ¦       __init__.py
+¦   ¦       
+¦   +---panels
+¦   ¦   ¦   band_activity_panel.py
+¦   ¦   ¦   logbook_panel.py
+¦   ¦   ¦   radio_panel.py
+¦   ¦   ¦   weather_panel.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           band_activity_panel.cpython-313.pyc
+¦   ¦           logbook_panel.cpython-313.pyc
+¦   ¦           radio_panel.cpython-313.pyc
+¦   ¦           weather_panel.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---services
+¦   ¦   ¦   live_service.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---data_sources
+¦   ¦   ¦   ¦   api_source.py
+¦   ¦   ¦   ¦   base.py
+¦   ¦   ¦   ¦   demo_source.py
+¦   ¦   ¦   ¦   internet_source.py
+¦   ¦   ¦   ¦   local_file_source.py
+¦   ¦   ¦   ¦   local_network_source.py
+¦   ¦   ¦   ¦   logbook_source.py
+¦   ¦   ¦   ¦   test_source.py
+¦   ¦   ¦   ¦   websocket_source.py
+¦   ¦   ¦   ¦   __init__.py
+¦   ¦   ¦   ¦   
+¦   ¦   ¦   +---__pycache__
+¦   ¦   ¦           api_source.cpython-313.pyc
+¦   ¦   ¦           base.cpython-313.pyc
+¦   ¦   ¦           demo_source.cpython-313.pyc
+¦   ¦   ¦           internet_source.cpython-313.pyc
+¦   ¦   ¦           local_file_source.cpython-313.pyc
+¦   ¦   ¦           local_network_source.cpython-313.pyc
+¦   ¦   ¦           logbook_source.cpython-313.pyc
+¦   ¦   ¦           test_source.cpython-313.pyc
+¦   ¦   ¦           websocket_source.cpython-313.pyc
+¦   ¦   ¦           __init__.cpython-313.pyc
+¦   ¦   ¦           
+¦   ¦   +---__pycache__
+¦   ¦           live_service.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---static
+¦   ¦   +---css
+¦   ¦   +---images
+¦   ¦   +---js
+¦   +---templates
+¦   ¦       index.html
+¦   ¦       
+¦   +---__pycache__
+¦           dashboard.cpython-313.pyc
+¦           main.cpython-313.pyc
+¦           theme.cpython-313.pyc
+¦           __init__.cpython-313.pyc
+¦           
++---apps
+¦   ¦   contest.zip
+¦   ¦   
+¦   +---bandmap
+¦   +---cat_server
+¦   ¦   ¦   logger.py
+¦   ¦   ¦   main.py
+¦   ¦   ¦   radio_service.py
+¦   ¦   ¦   status.py
+¦   ¦   ¦   window.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           logger.cpython-313.pyc
+¦   ¦           main.cpython-313.pyc
+¦   ¦           radio_service.cpython-313.pyc
+¦   ¦           status.cpython-313.pyc
+¦   ¦           window.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---contest
+¦   ¦   ¦   adif_io.py
+¦   ¦   ¦   cabrillo_export.py
+¦   ¦   ¦   cabrillo_export_dialog.py
+¦   ¦   ¦   contest_preferences.py
+¦   ¦   ¦   contest_properties_dialog.py
+¦   ¦   ¦   database.py
+¦   ¦   ¦   main.py
+¦   ¦   ¦   menu.py
+¦   ¦   ¦   models.py
+¦   ¦   ¦   qso_edit_dialog.py
+¦   ¦   ¦   qso_entry.py
+¦   ¦   ¦   qso_table.py
+¦   ¦   ¦   resources.py
+¦   ¦   ¦   simple_form_dialog.py
+¦   ¦   ¦   statistics_panel.py
+¦   ¦   ¦   toolbar.py
+¦   ¦   ¦   window.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           adif_io.cpython-313.pyc
+¦   ¦           cabrillo_export.cpython-313.pyc
+¦   ¦           cabrillo_export_dialog.cpython-313.pyc
+¦   ¦           contest_preferences.cpython-313.pyc
+¦   ¦           contest_properties_dialog.cpython-313.pyc
+¦   ¦           database.cpython-313.pyc
+¦   ¦           main.cpython-313.pyc
+¦   ¦           menu.cpython-313.pyc
+¦   ¦           models.cpython-313.pyc
+¦   ¦           qso_edit_dialog.cpython-313.pyc
+¦   ¦           qso_entry.cpython-313.pyc
+¦   ¦           qso_table.cpython-313.pyc
+¦   ¦           resources.cpython-313.pyc
+¦   ¦           simple_form_dialog.cpython-313.pyc
+¦   ¦           statistics_panel.cpython-313.pyc
+¦   ¦           toolbar.cpython-313.pyc
+¦   ¦           window.cpython-313.pyc
+¦   ¦           window_add_qso_corrige.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---dashboard
+¦   ¦   ¦   dashboard_page.py
+¦   ¦   ¦   live_service.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---data_sources
+¦   ¦   ¦   ¦   api_source.py
+¦   ¦   ¦   ¦   base.py
+¦   ¦   ¦   ¦   demo_source.py
+¦   ¦   ¦   ¦   dxcluster_source.py
+¦   ¦   ¦   ¦   internet_source.py
+¦   ¦   ¦   ¦   local_file_source.py
+¦   ¦   ¦   ¦   local_network_source.py
+¦   ¦   ¦   ¦   logbook_source.py
+¦   ¦   ¦   ¦   propagation_source.py
+¦   ¦   ¦   ¦   test_source.py
+¦   ¦   ¦   ¦   weather_source.py
+¦   ¦   ¦   ¦   websocket_source.py
+¦   ¦   ¦   ¦   __init__.py
+¦   ¦   ¦   ¦   
+¦   ¦   ¦   +---__pycache__
+¦   ¦   ¦           api_source.cpython-313.pyc
+¦   ¦   ¦           base.cpython-313.pyc
+¦   ¦   ¦           demo_source.cpython-313.pyc
+¦   ¦   ¦           dxcluster_source.cpython-313.pyc
+¦   ¦   ¦           internet_source.cpython-313.pyc
+¦   ¦   ¦           local_file_source.cpython-313.pyc
+¦   ¦   ¦           local_network_source.cpython-313.pyc
+¦   ¦   ¦           logbook_source.cpython-313.pyc
+¦   ¦   ¦           propagation_source.cpython-313.pyc
+¦   ¦   ¦           test_source.cpython-313.pyc
+¦   ¦   ¦           weather_source.cpython-313.pyc
+¦   ¦   ¦           websocket_source.cpython-313.pyc
+¦   ¦   ¦           __init__.cpython-313.pyc
+¦   ¦   ¦           
+¦   ¦   +---panels
+¦   ¦   ¦   ¦   band_activity_panel.py
+¦   ¦   ¦   ¦   dxcluster_panel.py
+¦   ¦   ¦   ¦   logbook_panel.py
+¦   ¦   ¦   ¦   propagation_panel.py
+¦   ¦   ¦   ¦   radio_panel.py
+¦   ¦   ¦   ¦   weather_panel.py
+¦   ¦   ¦   ¦   __init__.py
+¦   ¦   ¦   ¦   
+¦   ¦   ¦   +---__pycache__
+¦   ¦   ¦           band_activity_panel.cpython-313.pyc
+¦   ¦   ¦           dxcluster_panel.cpython-313.pyc
+¦   ¦   ¦           logbook_panel.cpython-313.pyc
+¦   ¦   ¦           propagation_panel.cpython-313.pyc
+¦   ¦   ¦           radio_panel.cpython-313.pyc
+¦   ¦   ¦           weather_panel.cpython-313.pyc
+¦   ¦   ¦           __init__.cpython-313.pyc
+¦   ¦   ¦           
+¦   ¦   +---__pycache__
+¦   ¦           dashboard_page.cpython-313.pyc
+¦   ¦           live_service.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---dxcluster
+¦   ¦   ¦   table_model.py
+¦   ¦   ¦   window.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           table_model.cpython-313.pyc
+¦   ¦           window.cpython-313.pyc
+¦   ¦           
+¦   +---frequency_bank
+¦   ¦   ¦   category_node.py
+¦   ¦   ¦   category_provider.py
+¦   ¦   ¦   category_store.py
+¦   ¦   ¦   category_tree.py
+¦   ¦   ¦   database.py
+¦   ¦   ¦   frequency_dialog.py
+¦   ¦   ¦   frequency_profile.py
+¦   ¦   ¦   frequency_profile_manager.py
+¦   ¦   ¦   frequency_profile_provider.py
+¦   ¦   ¦   frequency_service.py
+¦   ¦   ¦   models.py
+¦   ¦   ¦   repository.py
+¦   ¦   ¦   table_model.py
+¦   ¦   ¦   window.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           category_node.cpython-313.pyc
+¦   ¦           category_provider.cpython-313.pyc
+¦   ¦           category_store.cpython-313.pyc
+¦   ¦           category_tree.cpython-313.pyc
+¦   ¦           database.cpython-313.pyc
+¦   ¦           frequency_dialog.cpython-313.pyc
+¦   ¦           frequency_profile.cpython-313.pyc
+¦   ¦           frequency_profile_manager.cpython-313.pyc
+¦   ¦           frequency_profile_provider.cpython-313.pyc
+¦   ¦           frequency_service.cpython-313.pyc
+¦   ¦           models.cpython-313.pyc
+¦   ¦           repository.cpython-313.pyc
+¦   ¦           table_model.cpython-313.pyc
+¦   ¦           window.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---logbook
+¦   ¦   ¦   database.py
+¦   ¦   ¦   Logbook_Fix_Package.zip
+¦   ¦   ¦   main.py
+¦   ¦   ¦   models.py
+¦   ¦   ¦   qso_dialog.py
+¦   ¦   ¦   repository.py
+¦   ¦   ¦   table_model.py
+¦   ¦   ¦   ui.py
+¦   ¦   ¦   window.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---Logbook_Fix_Package
+¦   ¦   ¦   +---apps
+¦   ¦   ¦       +---logbook
+¦   ¦   ¦           ¦   window.py
+¦   ¦   ¦           ¦   
+¦   ¦   ¦           +---__pycache__
+¦   ¦   ¦                   window.cpython-313.pyc
+¦   ¦   ¦                   
+¦   ¦   +---__pycache__
+¦   ¦           database.cpython-313.pyc
+¦   ¦           main.cpython-313.pyc
+¦   ¦           models.cpython-313.pyc
+¦   ¦           qso_dialog.cpython-313.pyc
+¦   ¦           repository.cpython-313.pyc
+¦   ¦           table_model.cpython-313.pyc
+¦   ¦           ui.cpython-313.pyc
+¦   ¦           window.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---propagation
+¦   +---qsl_manager
+¦   +---radio_control
+¦   ¦   ¦   controller.py
+¦   ¦   ¦   main.py
+¦   ¦   ¦   window.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---panels
+¦   ¦   ¦   ¦   connection_panel.py
+¦   ¦   ¦   ¦   radio_panel.py
+¦   ¦   ¦   ¦   __init__.py
+¦   ¦   ¦   ¦   
+¦   ¦   ¦   +---__pycache__
+¦   ¦   ¦           connection_panel.cpython-313.pyc
+¦   ¦   ¦           radio_panel.cpython-313.pyc
+¦   ¦   ¦           __init__.cpython-313.pyc
+¦   ¦   ¦           
+¦   ¦   +---__pycache__
+¦   ¦           controller.cpython-313.pyc
+¦   ¦           main.cpython-313.pyc
+¦   ¦           window.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---scanner
+¦   ¦   ¦   scanner_engine.py
+¦   ¦   ¦   scanner_model.py
+¦   ¦   ¦   window.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           scanner_engine.cpython-313.pyc
+¦   ¦           scanner_model.cpython-313.pyc
+¦   ¦           window.cpython-313.pyc
+¦   ¦           
+¦   +---settings
+¦   +---wsjtx_bridge
++---assets
+¦   +---icons
+¦   ¦       cat_server.png
+¦   ¦       
+¦   +---images
+¦   +---logos
+¦   ¦       app_icon.png
+¦   ¦       on3rt_logo.png
+¦   ¦       on3rt_logo1.png
+¦   ¦       on3rt_logo_compact.png
+¦   ¦       splash.png
+¦   ¦       
+¦   +---sounds
+¦   +---themes
+¦           on3rt_dark.qss
+¦           
++---config
+¦       qrz.json
+¦       station.json
+¦       
++---core
+¦   ¦   application.py
+¦   ¦   main_window.py
+¦   ¦   module_manager.py
+¦   ¦   station_page.py
+¦   ¦   
+¦   +---__pycache__
+¦           application.cpython-313.pyc
+¦           main_window.cpython-313.pyc
+¦           module_manager.cpython-313.pyc
+¦           station_page.cpython-313.pyc
+¦           
++---data
+¦   ¦   contest.db
+¦   ¦   frequency_bank.db
+¦   ¦   frequency_bank_seed.json
+¦   ¦   logbook.db
+¦   ¦   
+¦   +---adif
+¦   +---archives
+¦   ¦       contest_20260726_110757.db
+¦   ¦       contest_20260728_205859.db
+¦   ¦       
+¦   +---backups
+¦   +---config
+¦   ¦       contest_preferences.ini
+¦   ¦       
+¦   +---database
+¦   +---logs
+¦   +---temp
++---docs
++---libraries
+¦   ¦   cat.zip
+¦   ¦   radio.zip
+¦   ¦   
+¦   +---cat
+¦   ¦   ¦   cat_bridge.py
+¦   ¦   ¦   cat_controller.py
+¦   ¦   ¦   cat_engine.py
+¦   ¦   ¦   cat_model.py
+¦   ¦   ¦   cat_monitor.py
+¦   ¦   ¦   cat_server.py
+¦   ¦   ¦   civ_protocol.py
+¦   ¦   ¦   command_queue.py
+¦   ¦   ¦   constants.py
+¦   ¦   ¦   frequency.py
+¦   ¦   ¦   mode.py
+¦   ¦   ¦   parser.py
+¦   ¦   ¦   poller.py
+¦   ¦   ¦   ptt.py
+¦   ¦   ¦   serial_transport.py
+¦   ¦   ¦   vfo.py
+¦   ¦   ¦   virtual_bridge.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           cat_bridge.cpython-313.pyc
+¦   ¦           cat_controller.cpython-313.pyc
+¦   ¦           cat_engine.cpython-313.pyc
+¦   ¦           cat_model.cpython-313.pyc
+¦   ¦           cat_monitor.cpython-313.pyc
+¦   ¦           cat_server.cpython-313.pyc
+¦   ¦           civ_protocol.cpython-313.pyc
+¦   ¦           command_queue.cpython-313.pyc
+¦   ¦           constants.cpython-313.pyc
+¦   ¦           frequency.cpython-313.pyc
+¦   ¦           mode.cpython-313.pyc
+¦   ¦           parser.cpython-313.pyc
+¦   ¦           poller.cpython-313.pyc
+¦   ¦           ptt.cpython-313.pyc
+¦   ¦           serial_transport.cpython-313.pyc
+¦   ¦           vfo.cpython-313.pyc
+¦   ¦           virtual_bridge.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---civ
+¦   +---common
+¦   +---database
+¦   +---dxcluster
+¦   ¦   ¦   dxcluster_service.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           dxcluster_service.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---logbook
+¦   ¦   ¦   adif_importer.py
+¦   ¦   ¦   adif_parser.py
+¦   ¦   ¦   auto_import.py
+¦   ¦   ¦   duplicate_checker.py
+¦   ¦   ¦   export_manager.py
+¦   ¦   ¦   file_watcher.py
+¦   ¦   ¦   import_dialog.py
+¦   ¦   ¦   import_manager.py
+¦   ¦   ¦   search_engine.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---importers
+¦   ¦   ¦   ¦   fldigi.py
+¦   ¦   ¦   ¦   js8call.py
+¦   ¦   ¦   ¦   jtdx.py
+¦   ¦   ¦   ¦   n1mm.py
+¦   ¦   ¦   ¦   varac.py
+¦   ¦   ¦   ¦   wsjtx.py
+¦   ¦   ¦   ¦   __init__.py
+¦   ¦   ¦   ¦   
+¦   ¦   ¦   +---__pycache__
+¦   ¦   ¦           fldigi.cpython-313.pyc
+¦   ¦   ¦           js8call.cpython-313.pyc
+¦   ¦   ¦           jtdx.cpython-313.pyc
+¦   ¦   ¦           n1mm.cpython-313.pyc
+¦   ¦   ¦           varac.cpython-313.pyc
+¦   ¦   ¦           wsjtx.cpython-313.pyc
+¦   ¦   ¦           __init__.cpython-313.pyc
+¦   ¦   ¦           
+¦   ¦   +---__pycache__
+¦   ¦           adif_importer.cpython-313.pyc
+¦   ¦           adif_parser.cpython-313.pyc
+¦   ¦           auto_import.cpython-313.pyc
+¦   ¦           duplicate_checker.cpython-313.pyc
+¦   ¦           export_manager.cpython-313.pyc
+¦   ¦           file_watcher.cpython-313.pyc
+¦   ¦           import_dialog.cpython-313.pyc
+¦   ¦           import_manager.cpython-313.pyc
+¦   ¦           search_engine.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---network
+¦   +---propagation
+¦   ¦   ¦   propagation_service.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           propagation_service.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---qrz
+¦   ¦   ¦   client.py
+¦   ¦   ¦   service.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           client.cpython-313.pyc
+¦   ¦           service.cpython-313.pyc
+¦   ¦           
+¦   +---radio
+¦   ¦   ¦   band_manager.py
+¦   ¦   ¦   cache.py
+¦   ¦   ¦   dxcc_manager.py
+¦   ¦   ¦   locator_manager.py
+¦   ¦   ¦   mode_manager.py
+¦   ¦   ¦   qrz_manager.py
+¦   ¦   ¦   radio_manager.py
+¦   ¦   ¦   radio_service.py
+¦   ¦   ¦   utc_manager.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           band_manager.cpython-313.pyc
+¦   ¦           cache.cpython-313.pyc
+¦   ¦           dxcc_manager.cpython-313.pyc
+¦   ¦           locator_manager.cpython-313.pyc
+¦   ¦           mode_manager.cpython-313.pyc
+¦   ¦           qrz_manager.cpython-313.pyc
+¦   ¦           radio_manager.cpython-313.pyc
+¦   ¦           radio_service.cpython-313.pyc
+¦   ¦           utc_manager.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---serial
+¦   +---station
+¦   ¦   ¦   station_service.py
+¦   ¦   ¦   __init__.py
+¦   ¦   ¦   
+¦   ¦   +---__pycache__
+¦   ¦           station_service.cpython-313.pyc
+¦   ¦           __init__.cpython-313.pyc
+¦   ¦           
+¦   +---ui
+¦   ¦   ¦   base_module.py
+¦   ¦   ¦   base_window.py
+¦   ¦   ¦   colors.py
+¦   ¦   ¦   theme.py
+¦   ¦   ¦   
+¦   ¦   +---components
+¦   ¦   ¦   ¦   cards.py
+¦   ¦   ¦   ¦   header.py
+¦   ¦   ¦   ¦   icons.py
+¦   ¦   ¦   ¦   sidebar.py
+¦   ¦   ¦   ¦   statusbar.py
+¦   ¦   ¦   ¦   widgets.py
+¦   ¦   ¦   ¦   __init__.py
+¦   ¦   ¦   ¦   
+¦   ¦   ¦   +---__pycache__
+¦   ¦   ¦           cards.cpython-313.pyc
+¦   ¦   ¦           header.cpython-313.pyc
+¦   ¦   ¦           icons.cpython-313.pyc
+¦   ¦   ¦           sidebar.cpython-313.pyc
+¦   ¦   ¦           statusbar.cpython-313.pyc
+¦   ¦   ¦           widgets.cpython-313.pyc
+¦   ¦   ¦           __init__.cpython-313.pyc
+¦   ¦   ¦           
+¦   ¦   +---__pycache__
+¦   ¦           base_module.cpython-313.pyc
+¦   ¦           base_window.cpython-313.pyc
+¦   ¦           colors.cpython-313.pyc
+¦   ¦           theme.cpython-313.pyc
+¦   ¦           
+¦   +---utils
+¦   +---weather
+¦       ¦   weather_service.py
+¦       ¦   __init__.py
+¦       ¦   
+¦       +---__pycache__
+¦               weather_service.cpython-313.pyc
+¦               __init__.cpython-313.pyc
+¦               
++---logs
+¦       cat_server.log
+¦       
++---ON3RT_Contest_Fix_Complete
+¦   +---apps
+¦       +---contest
+¦               qso_entry.py
+¦               window.py
+¦               
++---tests
+¦   ¦   conftest.py
+¦   ¦   test_contest_adif_io.py
+¦   ¦   test_contest_cabrillo_export.py
+¦   ¦   test_contest_database.py
+¦   ¦   test_contest_management.py
+¦   ¦   test_contest_menu_toolbar_wiring.py
+¦   ¦   test_contest_models.py
+¦   ¦   test_contest_preferences.py
+¦   ¦   test_contest_properties_dialog.py
+¦   ¦   test_contest_simple_form_dialog.py
+¦   ¦   test_contest_smoke.py
+¦   ¦   test_contest_window_actions.py
+¦   ¦   __init__.py
+¦   ¦   
+¦   +---__pycache__
+¦           conftest.cpython-313-pytest-9.1.1.pyc
+¦           test_contest_adif_io.cpython-313-pytest-9.1.1.pyc
+¦           test_contest_cabrillo_export.cpython-313-pytest-9.1.1.pyc
+¦           test_contest_database.cpython-313-pytest-9.1.1.pyc
+¦           test_contest_management.cpython-313-pytest-9.1.1.pyc
+¦           test_contest_management.cpython-313-pytest-9.1.1.pyc.36744
+¦           test_contest_menu_toolbar_wiring.cpython-313-pytest-9.1.1.pyc
+¦           test_contest_models.cpython-313-pytest-9.1.1.pyc
+¦           test_contest_preferences.cpython-313-pytest-9.1.1.pyc
+¦           test_contest_properties_dialog.cpython-313-pytest-9.1.1.pyc
+¦           test_contest_simple_form_dialog.cpython-313-pytest-9.1.1.pyc
+¦           test_contest_smoke.cpython-313-pytest-9.1.1.pyc
+¦           test_contest_window_actions.cpython-313-pytest-9.1.1.pyc
+¦           __init__.cpython-313.pyc
+¦           
++---__pycache__
+        launcher.cpython-313.pyc
+        test_civ.cpython-313-pytest-9.1.1.pyc
+        

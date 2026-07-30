@@ -19,22 +19,27 @@ Description :
     Panneau strictement descriptif : aucune interprétation, aucun
     seuil, aucun calcul, aucune traduction des valeurs — exactement
     les champs bruts publiés par PropagationService, affichés tels
-    quels ou "--" s'ils sont absents. Aucune interaction utilisateur.
+    quels ou "--"/pastille grise s'ils sont absents. Aucune
+    interaction utilisateur.
 
-    Conditions HF (V2) : PropagationService expose "band_conditions"
-    tel que HamQSL le calcule (bloc "calculatedconditions" du flux),
-    sans aucun retraitement de sa part. C'est ce panneau, et lui seul,
-    qui choisit d'afficher exactement les quatre groupes 80m/40m,
-    30m/20m, 17m/15m, 12m/10m, dans cet ordre — un choix de
-    présentation, jamais une donnée recalculée. 160m et 6m ne sont pas
-    traités ici (absents du bloc HamQSL, non demandés pour cette
-    évolution).
+    Conditions HF : PropagationService expose "band_conditions" tel
+    que HamQSL le calcule (bloc "calculatedconditions" du flux), sans
+    aucun retraitement de sa part. C'est ce panneau, et lui seul, qui
+    choisit d'afficher exactement les quatre groupes 80m/40m, 30m/20m,
+    17m/15m, 12m/10m, dans cet ordre, sous forme compacte (pastille
+    colorée + Jour/Nuit) — un choix de présentation, jamais une
+    donnée recalculée. La couleur de chaque pastille est une simple
+    correspondance directe avec le texte fourni par HamQSL
+    (Good/Fair/Poor -> vert/jaune/rouge, tout le reste -> gris),
+    jamais un seuil ou une évaluation inventée par ce panneau. 160m et
+    6m ne sont pas traités ici (absents du bloc HamQSL, non demandés
+    pour cette évolution).
 =========================================================
 """
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QFrame
+from PySide6.QtWidgets import QGridLayout, QLabel, QVBoxLayout, QFrame, QWidget
 
 
 class PropagationPanel(QFrame):
@@ -50,6 +55,17 @@ class PropagationPanel(QFrame):
         ("17m-15m", "17m / 15m"),
         ("12m-10m", "12m / 10m"),
     )
+
+    # Correspondance directe texte HamQSL -> pastille colorée. Toute
+    # valeur absente ou non reconnue (ex. future variante "Very Poor")
+    # retombe honnêtement sur la pastille grise — jamais reclassée
+    # dans l'une des trois couleurs connues.
+    _STATE_DOTS = {
+        "good": "🟢",
+        "fair": "🟡",
+        "poor": "🔴",
+    }
+    _UNKNOWN_DOT = "⚪"
 
     def __init__(self, live_service, parent=None):
         super().__init__(parent)
@@ -95,9 +111,65 @@ class PropagationPanel(QFrame):
 
         self._rows_container = QVBoxLayout()
         layout.addLayout(self._rows_container)
-        layout.addStretch()
 
         self._row_labels = []
+
+        # ------------------------------------------------
+        # Section Conditions HF : légende + tableau compact,
+        # widgets persistants (créés une seule fois, mis à jour en
+        # place à chaque relevé — les 4 groupes sont fixes).
+        # ------------------------------------------------
+
+        self._band_section = QWidget()
+        # Le thème global de la Suite (assets/themes/on3rt_dark.qss)
+        # applique "QWidget { background-color: #050911; }" à TOUT
+        # QWidget nu — sans cette ligne, ce conteneur hérite ce fond
+        # presque noir, visible à travers chaque interstice du
+        # tableau (espacement entre les cellules) et perçu comme des
+        # "traits noirs" de grille. Le rendre transparent laisse voir
+        # le fond bleu nuit du panneau (#112743) sans aucune ligne.
+        self._band_section.setStyleSheet("background: transparent;")
+
+        band_section_layout = QVBoxLayout(self._band_section)
+        band_section_layout.setContentsMargins(0, 8, 0, 0)
+        band_section_layout.setSpacing(10)
+
+        self._legend_label = QLabel("🟢 Good    🟡 Fair    🔴 Poor")
+        self._legend_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._legend_label.setStyleSheet("font-size:10pt; color:#9beeff; background:transparent;")
+        band_section_layout.addWidget(self._legend_label)
+
+        self._band_grid = QGridLayout()
+        self._band_grid.setHorizontalSpacing(32)
+        self._band_grid.setVerticalSpacing(9)
+        self._band_grid.setColumnMinimumWidth(1, 64)
+        self._band_grid.setColumnMinimumWidth(2, 64)
+        self._band_grid.setColumnStretch(0, 1)
+        band_section_layout.addLayout(self._band_grid)
+
+        self._band_row_widgets = {}
+
+        for row, (key, display_name) in enumerate(self.BAND_GROUPS):
+            name_label = QLabel(display_name)
+            name_label.setStyleSheet("font-size:11pt; font-weight:bold; color:#9beeff; background:transparent;")
+            name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+            day_label = QLabel()
+            day_label.setStyleSheet("font-size:11pt; color:#9beeff; background:transparent;")
+            day_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            night_label = QLabel()
+            night_label.setStyleSheet("font-size:11pt; color:#9beeff; background:transparent;")
+            night_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            self._band_grid.addWidget(name_label, row, 0)
+            self._band_grid.addWidget(day_label, row, 1)
+            self._band_grid.addWidget(night_label, row, 2)
+
+            self._band_row_widgets[key] = (day_label, night_label)
+
+        layout.addWidget(self._band_section)
+        layout.addStretch()
 
         # ------------------------------------------------
         # LiveService : seule source d'information de ce panneau.
@@ -147,6 +219,7 @@ class PropagationPanel(QFrame):
             """)
             self._rows_container.addWidget(empty)
             self._row_labels.append(empty)
+            self._band_section.setVisible(False)
             return
 
         for text in (
@@ -164,39 +237,31 @@ class PropagationPanel(QFrame):
             self._rows_container.addWidget(label)
             self._row_labels.append(label)
 
-        self._render_band_conditions(propagation)
+        self._band_section.setVisible(True)
+        self._update_band_grid(propagation)
 
-    def _render_band_conditions(self, propagation):
+    def _update_band_grid(self, propagation):
         band_conditions = propagation.get("band_conditions")
 
         if not isinstance(band_conditions, dict):
             band_conditions = {}
 
-        self._add_row("Conditions HF (HamQSL)", bold=True, top_padding=True)
-
-        for key, label in self.BAND_GROUPS:
+        for key, _display_name in self.BAND_GROUPS:
+            day_label, night_label = self._band_row_widgets[key]
             pair = band_conditions.get(key)
 
             if not isinstance(pair, dict):
                 pair = {}
 
-            day = pair.get("day") or "--"
-            night = pair.get("night") or "--"
+            day_label.setText(self._format_pastille("Jour", pair.get("day")))
+            night_label.setText(self._format_pastille("Nuit", pair.get("night")))
 
-            self._add_row(label, bold=True)
-            self._add_row(f"Jour : {day}")
-            self._add_row(f"Nuit : {night}")
+    @classmethod
+    def _format_pastille(cls, period_label, state):
+        normalized = state.strip().lower() if isinstance(state, str) else None
+        dot = cls._STATE_DOTS.get(normalized, cls._UNKNOWN_DOT)
 
-    def _add_row(self, text, bold=False, top_padding=False):
-        label = QLabel(text)
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        weight = "font-weight:bold;" if bold else ""
-        padding = "padding-top:8px;" if top_padding else ""
-        label.setStyleSheet(f"font-size:11pt; color:#9beeff; {weight} {padding}")
-
-        self._rows_container.addWidget(label)
-        self._row_labels.append(label)
+        return f"{dot} {period_label}"
 
     # -----------------------------------------------------
     # Mise en forme des lignes (affichage brut, aucune interprétation)

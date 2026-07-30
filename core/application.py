@@ -18,6 +18,7 @@ from PySide6.QtCore import QSettings
 
 from apps.cat_server.radio_service import RadioService
 from apps.frequency_bank.frequency_service import FrequencyService
+from apps.settings.settings_service import SettingsService
 from core.module_manager import ModuleManager
 from libraries.dxcluster.dxcluster_service import DXClusterService
 from libraries.propagation.propagation_service import PropagationService
@@ -80,6 +81,16 @@ class Application:
         # n'est nécessaire : pas de minuterie, la base est interrogée
         # à la demande par la fenêtre du module.
         self.frequency_service = FrequencyService()
+
+        # Service partagé des préférences générales de la suite (écran
+        # Settings) : fichier JSON local (config/settings.json),
+        # aucune dépendance à station_service ni à aucun autre
+        # service, aucune connexion externe. Comme frequency_service
+        # ci-dessus, aucun start() n'est nécessaire : pas de
+        # minuterie, le fichier est lu une seule fois à la
+        # construction et interrogé à la demande par la fenêtre du
+        # module.
+        self.settings_service = SettingsService()
 
     # ---------------------------------------------------------
     # Service CAT (arrière-plan)
