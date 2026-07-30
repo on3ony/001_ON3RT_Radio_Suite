@@ -33,7 +33,6 @@ toucher aux modèles personnels de l'utilisateur ni au reste de l'état
 from __future__ import annotations
 
 import json
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -43,23 +42,6 @@ DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "data" / "contest_as
 DEFAULT_SEED_PATH = Path(__file__).resolve().parents[2] / "data" / "contest_assistant_seed.json"
 
 DEFAULT_LANGUAGE = "FR"
-
-_VARIABLE_RE = re.compile(r"%([A-Z]+)%")
-
-
-def resolve_variables(text: str, values: dict) -> str:
-    """
-    Remplace chaque marqueur %CLE% présent dans `text` par
-    values["CLE"], si connu. Un marqueur sans valeur correspondante
-    est laissé tel quel dans le texte — jamais de donnée inventée pour
-    le combler.
-    """
-
-    def _replace(match: "re.Match[str]") -> str:
-        key = match.group(1)
-        return str(values[key]) if key in values else match.group(0)
-
-    return _VARIABLE_RE.sub(_replace, text)
 
 
 class ContestMessageService:

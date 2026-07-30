@@ -125,11 +125,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from libraries.text.variable_resolver import resolve_variables
 from libraries.ui import colors
 from libraries.ui.base_window import BaseWindow
 
 from apps.contest.contest_properties_dialog import CONTEST_NAMES
-from apps.contest_assistant.message_service import ContestMessageService, resolve_variables
+from apps.contest_assistant.message_service import ContestMessageService
 from apps.contest_assistant.table_model import MessageTemplateTableModel, SentMessageTableModel
 
 # Même présentation que DX Cluster (apps/dxcluster/window.py) : hauteur

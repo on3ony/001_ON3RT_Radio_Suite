@@ -5,14 +5,18 @@ Vérifie : chargement des modèles depuis le fichier seed au premier
 lancement (et seulement là), persistance atomique, langue, CRUD des
 modèles, numéro progressif, historique, reset_contest() (règles
 validées : nom/numéro/historique remis à zéro, modèles et langue
-jamais touchés), et resolve_variables().
+jamais touchés).
+
+resolve_variables() est testé dans tests/test_variable_resolver.py
+depuis son extraction vers libraries/text/variable_resolver.py
+(étape 4a de l'architecture Voix) — ce module ne le définit plus.
 """
 
 import json
 
 import pytest
 
-from apps.contest_assistant.message_service import ContestMessageService, resolve_variables
+from apps.contest_assistant.message_service import ContestMessageService
 from apps.contest_assistant.models import MessageTemplate, SentMessage
 
 _SEED = [
@@ -261,32 +265,6 @@ def test_reset_contest_persists_immediately(config_path, seed_path):
     assert reloaded.contest_name == ""
     assert reloaded.serial == 0
     assert reloaded.history == []
-
-
-# ------------------------------------------------------------------
-# resolve_variables()
-# ------------------------------------------------------------------
-
-def test_resolve_variables_substitutes_known_markers():
-    result = resolve_variables(
-        "%RST% %SERIAL% de %MYCALL% pour %CALL%",
-        {"RST": "599", "SERIAL": "001", "MYCALL": "ON3RT", "CALL": "F4XYZ"},
-    )
-    assert result == "599 001 de ON3RT pour F4XYZ"
-
-
-def test_resolve_variables_leaves_unknown_markers_untouched():
-    result = resolve_variables("%RST% %UNKNOWN%", {"RST": "599"})
-    assert result == "599 %UNKNOWN%"
-
-
-def test_resolve_variables_handles_repeated_markers():
-    result = resolve_variables("%SERIAL%-%SERIAL%", {"SERIAL": "007"})
-    assert result == "007-007"
-
-
-def test_resolve_variables_with_no_markers_returns_text_unchanged():
-    assert resolve_variables("Merci, bonne continuation", {}) == "Merci, bonne continuation"
 
 
 # ------------------------------------------------------------------
