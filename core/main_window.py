@@ -54,6 +54,7 @@ _MODULES = (
     ("sun", "Propagation", "Indices solaires, prévisions HF en temps réel.", "propagation"),
     ("signal", "Banque de fréquences", "Fréquences de référence, plan de bandes, favoris.", "frequency_bank"),
     ("radar", "Scanner", "Balayage de fréquences et mémoires programmables.", "scanner"),
+    ("list", "BandMap", "Vue graphique de la bande active et des spots DX en direct.", "bandmap"),
     ("wave", "WSJT-X Bridge", "Pont UDP vers WSJT-X, décodage et logging auto.", "wsjtx"),
     ("mail", "QSL Manager", "Suivi des cartes QSL, envoi et bureau QSL.", "qsl"),
     ("settings", "Settings", "Préférences radio, thème, comptes et intégrations.", "settings"),
@@ -69,6 +70,7 @@ _IMPLEMENTED = {
     "dxcluster",
     "scanner",
     "settings",
+    "bandmap",
 }
 
 
@@ -324,5 +326,11 @@ class MainWindow(QMainWindow):
                 station_service=self.application.station_service,
                 settings_service=self.application.settings_service,
                 radio_service=self.application.radio_service,
+            )
+        if key == "bandmap":
+            from apps.bandmap.window import BandMapWindow
+            return BandMapWindow(
+                radio_service=self.application.radio_service,
+                dxcluster_service=self.application.dxcluster_service,
             )
         raise ValueError(f"Module inconnu : {key}")
