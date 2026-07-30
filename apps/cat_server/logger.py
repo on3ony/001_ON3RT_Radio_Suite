@@ -152,6 +152,36 @@ class CATLogger:
             f"relâchement forcé (demandeur={owner or 'inconnu'})"
         )
 
+    # ------------------------------------------------------------------
+    # TransmissionService (voir apps/cat_server/transmission_service.py)
+    # — orchestration PTT + lecture audio. Complète les lignes
+    # ptt_guard_*/ptt() ci-dessus (qui restent la source de vérité pour
+    # l'état PTT lui-même) avec la vue d'ensemble de la séquence, pour
+    # reconstituer la chronologie complète d'une transmission lors d'un
+    # diagnostic sur matériel réel.
+    # ------------------------------------------------------------------
+
+    def transmission_requested(self, owner: str | None) -> None:
+        self.info(f"TransmissionService : transmission demandée (demandeur={owner or 'inconnu'})")
+
+    def transmission_rejected(self, owner: str | None, reason: str) -> None:
+        self.warning(f"TransmissionService : transmission refusée (demandeur={owner or 'inconnu'}) — {reason}")
+
+    def transmission_accepted(self, owner: str | None) -> None:
+        self.info(f"TransmissionService : transmission acceptée, PTT activé (demandeur={owner or 'inconnu'})")
+
+    def transmission_playback_started(self, owner: str | None) -> None:
+        self.info(f"TransmissionService : lecture audio démarrée (demandeur={owner or 'inconnu'})")
+
+    def transmission_playback_finished(self, owner: str | None) -> None:
+        self.info(f"TransmissionService : lecture audio terminée (demandeur={owner or 'inconnu'})")
+
+    def transmission_stopped(self, owner: str | None) -> None:
+        self.warning(f"TransmissionService : transmission interrompue manuellement (demandeur={owner or 'inconnu'})")
+
+    def transmission_error_occurred(self, owner: str | None, reason: str) -> None:
+        self.warning(f"TransmissionService : erreur de transmission (demandeur={owner or 'inconnu'}) — {reason}")
+
 
 logger = CATLogger()
 
