@@ -41,6 +41,15 @@ class RadioService(QObject):
     disconnected = Signal()
     error = Signal(str)
 
+    # Émis en tout premier dans disconnect(), avant toute fermeture
+    # réelle du port — pendant qu'une commande CAT a encore une chance
+    # d'atteindre la radio. Voir PTTGuard, qui s'y abonne pour garantir
+    # qu'un PTT actif est toujours relâché avant que la liaison ne
+    # ferme, quel que soit l'appelant de disconnect() (reconfigure(),
+    # une action manuelle, etc.) — RadioService n'a pas besoin de
+    # connaître PTTGuard pour ça, il annonce seulement son intention.
+    aboutToDisconnect = Signal()
+
     def __init__(self, port="COM3", baudrate=19200, live_data_path=None):
         super().__init__()
 
@@ -113,6 +122,11 @@ class RadioService(QObject):
 
         self.timer.stop()
         logger.polling_stopped()
+
+        # Émis avant toute fermeture réelle du port : voir docstring de
+        # aboutToDisconnect. PTTGuard.release() (idempotent, ne lève
+        # jamais) s'exécute ici pendant que la liaison existe encore.
+        self.aboutToDisconnect.emit()
 
         try:
             self.controller.disconnect()
@@ -271,6 +285,36 @@ class RadioService(QObject):
 
         try:
             self.controller.set_mode(mode)
+            return True
+        except Exception as exc:
+            self.status.last_error = str(exc)
+            logger.exception(exc)
+            self.error.emit(str(exc))
+            return False
+
+    def set_ptt(self, state: bool) -> bool:
+        """
+        Active/désactive le PTT sur la radio (commande CAT directe). Ne
+        fait rien si la radio n'est pas connectée. Comme
+        set_frequency()/set_mode(), status.ptt n'est pas mis à jour de
+        manière optimiste ici : poll() reste l'unique source de vérité
+        pour l'état affiché.
+
+        Aucune minuterie de sécurité, aucune protection anti-
+        superposition ici — c'est une primitive brute. Voir PTTGuard
+        (apps/cat_server/ptt_guard.py), qui l'utilise pour fournir ces
+        garanties ; les modules applicatifs doivent passer par
+        PTTGuard, jamais appeler set_ptt() directement.
+        """
+
+        if not self.controller.connected:
+            logger.event("set_ptt() ignoré : controller.connected == False")
+            return False
+
+        logger.event(f"set_ptt() appelé : {state}")
+
+        try:
+            self.controller.set_ptt(state)
             return True
         except Exception as exc:
             self.status.last_error = str(exc)

@@ -129,6 +129,29 @@ class CATLogger:
             f"{label} : RX brut={response.hex(' ').upper() if response else '(vide)'} -> décodé={decoded}"
         )
 
+    # ------------------------------------------------------------------
+    # PTTGuard (voir apps/cat_server/ptt_guard.py) — distinct de ptt()
+    # ci-dessus, qui trace un état PTT *observé* pendant le polling.
+    # Ces méthodes tracent une action *commandée* via PTTGuard, avec le
+    # demandeur (owner) pour pouvoir distinguer quel module a activé le
+    # PTT lors d'un diagnostic sur matériel réel.
+    # ------------------------------------------------------------------
+
+    def ptt_guard_activated(self, owner: str | None) -> None:
+        self.info(f"PTTGuard : PTT activé (demandeur={owner or 'inconnu'})")
+
+    def ptt_guard_released(self, owner: str | None) -> None:
+        self.info(f"PTTGuard : PTT relâché (demandeur={owner or 'inconnu'})")
+
+    def ptt_guard_rejected(self, owner: str | None, reason: str) -> None:
+        self.warning(f"PTTGuard : activation refusée (demandeur={owner or 'inconnu'}) — {reason}")
+
+    def ptt_guard_timeout(self, owner: str | None, timeout_s: float) -> None:
+        self.warning(
+            f"PTTGuard : timeout de sécurité ({timeout_s:.0f}s) déclenché — "
+            f"relâchement forcé (demandeur={owner or 'inconnu'})"
+        )
+
 
 logger = CATLogger()
 
