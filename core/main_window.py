@@ -340,5 +340,7 @@ class MainWindow(QMainWindow):
             return ContestAssistantWindow(
                 message_service=self.application.contest_message_service,
                 station_service=self.application.station_service,
+                transmission_service=self.application.transmission_service,
+                voice_service=self.application.voice_service,
             )
         raise ValueError(f"Module inconnu : {key}")

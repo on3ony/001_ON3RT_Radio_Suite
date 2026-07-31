@@ -6,11 +6,22 @@ bascule de langue, CRUD des modèles (via une boîte de dialogue
 simulée), envoi d'un message (résolution des variables incluant
 %MYCALL% via StationService, avance du numéro, historique),
 reset_contest() avec confirmation, restauration des modèles par
-défaut, et l'ergonomie des tableaux Messages/Historique (QTableView,
-même présentation que DX Cluster).
+défaut, l'ergonomie des tableaux Messages/Historique (QTableView,
+même présentation que DX Cluster), et le bouton "Annoncer" (étape 4e-3 :
+pipeline asynchrone voice_service -> transmission_service, filtrage par
+request_id, indépendance totale vis-à-vis de "Envoyer").
+
+Les tests "Annoncer" utilisent des doubles de test (_FakeVoiceService/
+_FakeTransmissionService, QObject réels avec de vrais Signal Qt) —
+jamais les vrais services : mêmes principes que
+tests/test_voice_service.py/test_transmission_service.py. Les
+connexions de window.py sont directes (même thread) : émettre un
+signal sur un double déclenche donc le slot immédiatement, sans boucle
+d'événements à pomper.
 """
 
 import pytest
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QDialog, QMessageBox
 
 import apps.contest_assistant.window as window_module
@@ -74,9 +85,82 @@ def station_service(tmp_path):
     return service
 
 
+class _FakeVoiceService(QObject):
+    """
+    Double de test pour VoiceService : mêmes signaux Qt réels
+    (synthesis_finished/synthesis_error), mais synthesize() ne lance
+    rien en arrière-plan -- il enregistre l'appel et retourne un
+    request_id immédiatement. Le test déclenche lui-même le signal de
+    fin (.emit()) au moment voulu, pour contrôler précisément le
+    scénario (succès, erreur, requête étrangère).
+    """
+
+    synthesis_finished = Signal(str, str)
+    synthesis_error = Signal(str, str)
+
+    def __init__(self):
+        super().__init__()
+        self.calls = []
+        self._next_id = 0
+
+    def synthesize(self, text, values=None, params=None, cacheable=True, owner=None):
+        self._next_id += 1
+        request_id = f"req-{self._next_id}"
+        self.calls.append(
+            {
+                "text": text,
+                "values": values,
+                "params": params,
+                "cacheable": cacheable,
+                "owner": owner,
+                "request_id": request_id,
+            }
+        )
+        return request_id
+
+
+class _FakeTransmissionService(QObject):
+    """Double de test pour TransmissionService -- mêmes signaux réels, transmit() enregistre l'appel et retourne True."""
+
+    transmission_started = Signal()
+    transmission_finished = Signal()
+    transmission_stopped = Signal()
+    transmission_error = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        self.calls = []
+
+    def transmit(self, source, owner=None):
+        self.calls.append({"source": source, "owner": owner})
+        return True
+
+
+@pytest.fixture
+def voice_service():
+    return _FakeVoiceService()
+
+
+@pytest.fixture
+def transmission_service():
+    return _FakeTransmissionService()
+
+
 @pytest.fixture
 def window(qapp, message_service, station_service):
     w = ContestAssistantWindow(message_service=message_service, station_service=station_service)
+    yield w
+    w.close()
+
+
+@pytest.fixture
+def window_with_voice(qapp, message_service, station_service, transmission_service, voice_service):
+    w = ContestAssistantWindow(
+        message_service=message_service,
+        station_service=station_service,
+        transmission_service=transmission_service,
+        voice_service=voice_service,
+    )
     yield w
     w.close()
 
@@ -420,3 +504,160 @@ def test_reset_without_confirmation_changes_nothing(window, message_service, mes
     window.btn_reset.click()
 
     assert message_service.contest_name == "CQ WW DX SSB (custom)"
+
+
+# ------------------------------------------------------------------
+# Annoncer (étape 4e-3) — action indépendante de "Envoyer"
+# ------------------------------------------------------------------
+
+def test_announce_button_is_labelled(window):
+    assert window.btn_announce.text() == "Annoncer"
+
+
+def test_announce_button_disabled_when_services_are_not_provided(window):
+    assert window.btn_announce.isEnabled() is False
+
+
+def test_announce_button_enabled_when_both_services_are_provided(window_with_voice):
+    assert window_with_voice.btn_announce.isEnabled() is True
+
+
+def test_announce_click_is_a_safe_noop_when_services_are_absent(window):
+    window.btn_announce.click()  # ne doit jamais lever, même appelé explicitement sur un bouton désactivé
+
+
+def test_announce_without_selection_shows_a_message_and_does_not_synthesize(window_with_voice, voice_service):
+    window_with_voice.btn_announce.click()
+
+    assert voice_service.calls == []
+    assert window_with_voice.btn_announce.isEnabled() is True
+
+
+def test_announce_selected_message_starts_synthesis_with_resolved_text(window_with_voice, voice_service):
+    window_with_voice.template_table.selectRow(0)
+    window_with_voice.edit_call.setText("F4XYZ")
+    window_with_voice.edit_rst.setText("599")
+
+    window_with_voice.btn_announce.click()
+
+    assert len(voice_service.calls) == 1
+    call = voice_service.calls[0]
+    assert call["text"] == "CQ Concours de ON3RT"
+    assert call["cacheable"] is False  # échange dynamique, jamais mis en cache -- voir docstring du module
+    assert call["owner"] == "contest_assistant"
+
+
+def test_announce_disables_the_button_while_in_flight(window_with_voice):
+    window_with_voice.template_table.selectRow(0)
+
+    window_with_voice.btn_announce.click()
+
+    assert window_with_voice.btn_announce.isEnabled() is False
+
+
+def test_announce_never_touches_serial_or_history(window_with_voice, message_service, voice_service, transmission_service):
+    """Indépendance totale vis-à-vis de 'Envoyer' -- voir docstring du module."""
+
+    window_with_voice.template_table.selectRow(0)
+    window_with_voice.btn_announce.click()
+
+    request_id = voice_service.calls[0]["request_id"]
+    voice_service.synthesis_finished.emit(request_id, "fake_output.wav")
+    transmission_service.transmission_finished.emit()
+
+    assert message_service.serial == 0
+    assert message_service.history == []
+
+
+def test_announce_full_pipeline_reaches_transmission_and_reenables_button(
+    window_with_voice, voice_service, transmission_service
+):
+    window_with_voice.template_table.selectRow(0)
+    window_with_voice.btn_announce.click()
+
+    request_id = voice_service.calls[0]["request_id"]
+    voice_service.synthesis_finished.emit(request_id, "fake_output.wav")
+
+    assert len(transmission_service.calls) == 1
+    assert transmission_service.calls[0] == {"source": "fake_output.wav", "owner": "contest_assistant"}
+    assert window_with_voice.btn_announce.isEnabled() is False  # transmission encore en cours
+
+    transmission_service.transmission_finished.emit()
+
+    assert window_with_voice.btn_announce.isEnabled() is True
+
+
+def test_announce_synthesis_error_reenables_button_and_never_calls_transmit(
+    window_with_voice, voice_service, transmission_service
+):
+    window_with_voice.template_table.selectRow(0)
+    window_with_voice.btn_announce.click()
+
+    request_id = voice_service.calls[0]["request_id"]
+    voice_service.synthesis_error.emit(request_id, "moteur en panne")
+
+    assert transmission_service.calls == []
+    assert window_with_voice.btn_announce.isEnabled() is True
+    assert "moteur en panne" in window_with_voice.statusBar().currentMessage()
+
+
+def test_announce_transmission_error_reenables_button(window_with_voice, voice_service, transmission_service):
+    window_with_voice.template_table.selectRow(0)
+    window_with_voice.btn_announce.click()
+
+    request_id = voice_service.calls[0]["request_id"]
+    voice_service.synthesis_finished.emit(request_id, "fake_output.wav")
+    transmission_service.transmission_error.emit("PTT indisponible")
+
+    assert window_with_voice.btn_announce.isEnabled() is True
+    assert "PTT indisponible" in window_with_voice.statusBar().currentMessage()
+
+
+def test_announce_ignores_synthesis_signals_for_a_different_request_id(
+    window_with_voice, voice_service, transmission_service
+):
+    """VoiceService est partagé : cette fenêtre ne doit réagir qu'à sa propre requête."""
+
+    window_with_voice.template_table.selectRow(0)
+    window_with_voice.btn_announce.click()
+
+    voice_service.synthesis_finished.emit("someone-elses-request", "not_ours.wav")
+
+    assert transmission_service.calls == []
+    assert window_with_voice.btn_announce.isEnabled() is False  # toujours en attente de SA requête
+
+
+def test_announce_ignores_transmission_signals_when_not_announcing(window_with_voice, transmission_service):
+    """TransmissionService est partagé : un signal reçu hors annonce ne doit rien perturber."""
+
+    transmission_service.transmission_finished.emit()
+
+    assert window_with_voice.btn_announce.isEnabled() is True
+
+
+def test_send_button_behaviour_is_unaffected_by_the_presence_of_voice_and_transmission_services(window_with_voice, message_service):
+    """Non-régression : 'Envoyer' se comporte à l'identique, même avec les deux services injectés."""
+
+    window_with_voice.template_table.selectRow(0)
+    window_with_voice.edit_call.setText("F4XYZ")
+    window_with_voice.edit_rst.setText("599")
+
+    window_with_voice.btn_send.click()
+
+    assert message_service.serial == 1
+    assert len(message_service.history) == 1
+    assert message_service.history[0].resolved_text == "CQ Concours de ON3RT"
+
+
+def test_announce_unexpected_exception_is_caught_and_reported(window_with_voice, voice_service, monkeypatch):
+    def _boom(text, values):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(window_module, "resolve_variables", _boom)
+
+    window_with_voice.template_table.selectRow(0)
+    window_with_voice.btn_announce.click()
+
+    assert voice_service.calls == []
+    assert window_with_voice.btn_announce.isEnabled() is True
+    assert "boom" in window_with_voice.statusBar().currentMessage()

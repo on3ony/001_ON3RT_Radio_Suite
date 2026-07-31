@@ -16,14 +16,18 @@ Responsabilités :
 
 from PySide6.QtCore import QSettings
 
+from apps.cat_server.ptt_guard import PTTGuard
 from apps.cat_server.radio_service import RadioService
+from apps.cat_server.transmission_service import TransmissionService
 from apps.contest_assistant.message_service import ContestMessageService
 from apps.frequency_bank.frequency_service import FrequencyService
 from apps.settings.settings_service import SettingsService
 from core.module_manager import ModuleManager
+from libraries.audio.audio_output_service import AudioOutputService
 from libraries.dxcluster.dxcluster_service import DXClusterService
 from libraries.propagation.propagation_service import PropagationService
 from libraries.station.station_service import StationService
+from libraries.voice.voice_service import VoiceService
 from libraries.weather.weather_service import WeatherService
 
 DEFAULT_CAT_BAUDRATE = 19200
@@ -100,6 +104,24 @@ class Application:
         # la fenêtre, pas par ce service). Comme settings_service
         # ci-dessus, aucun start() n'est nécessaire.
         self.contest_message_service = ContestMessageService()
+
+        # Infrastructure partagée de l'architecture Voix (AudioOutputService
+        # / PTTGuard / TransmissionService / VoiceService) : quatre
+        # briques déjà validées unitairement et matériellement (étapes
+        # 1 à 4d), mais qu'aucun module applicatif ne consommait encore
+        # avant l'étape 4e. ptt_guard réutilise self.radio_service
+        # ci-dessus — la même instance CAT déjà partagée avec
+        # ScannerWindow/SettingsWindow/BandMapWindow, aucune connexion
+        # supplémentaire créée ici. Pure plomberie à ce stade (4e-1) :
+        # comme chaque service partagé lors de son introduction, rien
+        # ne les utilise encore — leur premier vrai consommateur
+        # (bouton "Annoncer" du Contest Assistant) arrive à l'étape 4e-3.
+        self.audio_output_service = AudioOutputService()
+        self.ptt_guard = PTTGuard(radio_service=self.radio_service)
+        self.transmission_service = TransmissionService(
+            audio_service=self.audio_output_service, ptt_guard=self.ptt_guard
+        )
+        self.voice_service = VoiceService()
 
     # ---------------------------------------------------------
     # Service CAT (arrière-plan)

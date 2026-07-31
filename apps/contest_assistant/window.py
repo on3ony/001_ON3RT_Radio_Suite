@@ -12,6 +12,63 @@ abonnement — donc aucun signal à déconnecter à la fermeture,
 contrairement à Scanner/DX Cluster/BandMap qui suivent un service
 partagé actif en arrière-plan.
 
+transmission_service et voice_service (étape 4e-2 de l'architecture
+Voix) sont reçus en injection exactement de la même façon, jamais
+instanciés ici : règle stricte de la Suite, une seule instance
+partagée de VoiceService/AudioOutputService/PTTGuard/TransmissionService
+existe dans toute l'application, créée uniquement par
+core/application.py (voir sa docstring) — aucune fenêtre n'a le droit
+d'en créer une seconde.
+
+"Annoncer" (étape 4e-3) : premier vrai consommateur de la chaîne Voix,
+une action TOTALEMENT INDÉPENDANTE de "Envoyer" (voir sa docstring,
+section Envoi, plus bas) — aucun code partagé entre les deux, aucun
+effet sur le numéro progressif ni sur l'historique. "Annoncer" ne fait
+que résoudre le même texte et le prononcer réellement : voice_service.
+synthesize(resolved, cacheable=False, owner=...) -> sur
+synthesis_finished -> transmission_service.transmit(output_path,
+owner=...) -> sur transmission_finished/transmission_error, réactive
+le bouton. cacheable=False délibérément : un échange de concours avec
+%RST%/%SERIAL% change presque à chaque appel, un cache serait inutile
+(voir la docstring de VoiceService.synthesize()). Entièrement
+asynchrone (signaux Qt) à chaque étape : l'interface ne se bloque
+jamais, ni pendant la synthèse ni pendant la transmission.
+
+Actif seulement si voice_service ET transmission_service ont été
+fournis (sinon désactivé en permanence — dégradation propre plutôt
+qu'un clic qui ne ferait rien ou lèverait une exception), et désactivé
+le temps qu'une annonce déjà lancée se termine (succès ou erreur) :
+évite un second clic pendant qu'une synthèse/transmission est en cours,
+en plus du rejet natif de TransmissionService.transmit() si une
+transmission est déjà active (voir sa docstring).
+
+request_id de VoiceService.synthesize() vérifié avant de réagir à
+synthesis_finished/synthesis_error : VoiceService est une ressource
+partagée de toute la Suite (voir core/application.py), une future
+fenêtre pourrait un jour l'utiliser en parallèle — cette fenêtre ne
+doit jamais réagir à la synthèse de quelqu'un d'autre. Signaux de
+VoiceService/TransmissionService connectés UNE SEULE FOIS à la
+construction (jamais connectés/déconnectés par clic), comme
+TransmissionService le fait déjà pour les signaux d'AudioOutputService.
+
+Aucune vérification symétrique côté transmission_finished/
+transmission_error : TransmissionService ne permet qu'une transmission
+à la fois (is_transmitting) et rien d'autre ne le consomme encore
+aujourd'hui — si un second consommateur apparaît plus tard, ce point
+devra être revisité (filtrage par owner, comme request_id ci-dessus).
+
+Toute erreur (synthèse, transmission — TransmissionService relaie déjà
+les erreurs de lecture d'AudioOutputService) est affichée dans la barre
+d'état, jamais une exception qui remonterait : le clic sur "Annoncer"
+est lui-même protégé par un bloc try/except large, en dernier recours,
+pour ne jamais planter la fenêtre quelle que soit la cause.
+
+Fermeture de la fenêtre pendant une annonce en cours : volontairement
+non gérée ici — transmission_service est un service partagé de toute
+l'application (pas la propriété de cette fenêtre), la transmission se
+termine naturellement même si cette fenêtre se ferme entre-temps, avec
+la minuterie de sécurité de PTTGuard comme filet de secours ultime.
+
 %MYCALL% est résolu ici, pas dans le service : ContestMessageService
 ne dépend d'aucun autre service (voir sa conception) — c'est cette
 fenêtre qui assemble le texte du modèle avec station_service.callsign
@@ -179,7 +236,14 @@ _TABLE_STYLESHEET = f"""
 
 class ContestAssistantWindow(BaseWindow):
 
-    def __init__(self, message_service: ContestMessageService, station_service=None, parent=None):
+    def __init__(
+        self,
+        message_service: ContestMessageService,
+        station_service=None,
+        transmission_service=None,
+        voice_service=None,
+        parent=None,
+    ):
         super().__init__(
             title="Contest Assistant",
             subtitle="Messages de concours bilingues, numérotation automatique",
@@ -187,10 +251,20 @@ class ContestAssistantWindow(BaseWindow):
 
         self.message_service = message_service
         self.station_service = station_service
+        self.transmission_service = transmission_service
+        self.voice_service = voice_service
+
+        # État de l'annonce en cours (étape 4e-3) — voir docstring du
+        # module, section "Annoncer". _announce_request_id filtre les
+        # signaux de voice_service (ressource partagée) pour ne réagir
+        # qu'à notre propre demande.
+        self._announcing = False
+        self._announce_request_id: str | None = None
 
         self._build_content()
         self._connect_signals()
         self._refresh_all()
+        self._update_announce_button_enabled()
 
         # Ouvre agrandie plutôt qu'à une taille fixe devinée : voir
         # docstring du module. setWindowState() avant l'affichage
@@ -319,6 +393,7 @@ class ContestAssistantWindow(BaseWindow):
         layout.setSpacing(8)
 
         self.btn_send = QPushButton("Envoyer le message sélectionné")
+        self.btn_announce = QPushButton("Annoncer")
         self.btn_add_template = QPushButton("Ajouter")
         self.btn_edit_template = QPushButton("Modifier")
         self.btn_delete_template = QPushButton("Supprimer")
@@ -326,6 +401,7 @@ class ContestAssistantWindow(BaseWindow):
 
         for button in (
             self.btn_send,
+            self.btn_announce,
             self.btn_add_template,
             self.btn_edit_template,
             self.btn_delete_template,
@@ -369,10 +445,23 @@ class ContestAssistantWindow(BaseWindow):
         self.btn_reset.clicked.connect(self._on_reset_contest_clicked)
 
         self.btn_send.clicked.connect(self._on_send_clicked)
+        self.btn_announce.clicked.connect(self._on_announce_clicked)
         self.btn_add_template.clicked.connect(self._on_add_template_clicked)
         self.btn_edit_template.clicked.connect(self._on_edit_template_clicked)
         self.btn_delete_template.clicked.connect(self._on_delete_template_clicked)
         self.btn_restore_defaults.clicked.connect(self._on_restore_defaults_clicked)
+
+        # Connectés une seule fois ici, jamais par clic (ressources
+        # partagées) — voir docstring du module. Absents si les
+        # services n'ont pas été fournis (bouton alors désactivé en
+        # permanence, voir _update_announce_button_enabled()).
+        if self.voice_service is not None:
+            self.voice_service.synthesis_finished.connect(self._on_voice_synthesis_finished)
+            self.voice_service.synthesis_error.connect(self._on_voice_synthesis_error)
+
+        if self.transmission_service is not None:
+            self.transmission_service.transmission_finished.connect(self._on_transmission_finished)
+            self.transmission_service.transmission_error.connect(self._on_transmission_error)
 
     # ------------------------------------------------------------------
     # Rafraîchissement de l'affichage
@@ -564,6 +653,108 @@ class ContestAssistantWindow(BaseWindow):
         self._refresh_history_list()
 
         self.statusBar().showMessage(f"Message envoyé : {resolved}", 3000)
+
+    # ------------------------------------------------------------------
+    # Annoncer (étape 4e-3 — action indépendante de "Envoyer", voir
+    # docstring du module)
+    # ------------------------------------------------------------------
+
+    def _services_available_for_announce(self) -> bool:
+        return self.voice_service is not None and self.transmission_service is not None
+
+    def _update_announce_button_enabled(self) -> None:
+        self.btn_announce.setEnabled(self._services_available_for_announce() and not self._announcing)
+
+    def _on_announce_clicked(self) -> None:
+        try:
+            self._start_announce()
+        except Exception as exc:
+            # Dernier recours : "Annoncer" ne doit jamais faire planter
+            # la fenêtre, quelle que soit la cause — voir docstring du
+            # module.
+            self._announcing = False
+            self._announce_request_id = None
+            self._update_announce_button_enabled()
+            self.statusBar().showMessage(f"Erreur inattendue lors de l'annonce : {exc}", 5000)
+
+    def _start_announce(self) -> None:
+        if not self._services_available_for_announce():
+            return
+
+        template = self._selected_template()
+
+        if template is None:
+            QMessageBox.information(self, "Aucune sélection", "Sélectionnez un message à annoncer.")
+            return
+
+        values = {
+            "CALL": self.edit_call.text().strip(),
+            "RST": self.edit_rst.text().strip(),
+            "SERIAL": f"{self.message_service.next_serial:03d}",
+            "MYCALL": self.station_service.callsign if self.station_service is not None else "",
+        }
+
+        text = self.message_service.active_text(template)
+        resolved = resolve_variables(text, values)
+
+        self._announcing = True
+        self._update_announce_button_enabled()
+        self.statusBar().showMessage("Synthèse vocale en cours...", 0)
+
+        self._announce_request_id = self.voice_service.synthesize(
+            resolved, cacheable=False, owner="contest_assistant"
+        )
+
+    def _on_voice_synthesis_finished(self, request_id: str, output_path: str) -> None:
+        if request_id != self._announce_request_id:
+            return  # synthèse d'un autre consommateur de voice_service
+
+        self._announce_request_id = None
+        self.statusBar().showMessage("Transmission en cours...", 0)
+
+        try:
+            self.transmission_service.transmit(output_path, owner="contest_assistant")
+        except Exception as exc:
+            self._announcing = False
+            self._update_announce_button_enabled()
+            self.statusBar().showMessage(f"Erreur inattendue lors de la transmission : {exc}", 5000)
+
+    def _on_voice_synthesis_error(self, request_id: str, message: str) -> None:
+        if request_id != self._announce_request_id:
+            return
+
+        self._announce_request_id = None
+        self._announcing = False
+        self._update_announce_button_enabled()
+        self.statusBar().showMessage(f"Erreur de synthèse vocale : {message}", 5000)
+
+    # TODO (dette technique connue, volontaire à ce stade) :
+    # _on_transmission_finished()/_on_transmission_error() ci-dessous ne
+    # filtrent PAS par owner/request_id, contrairement à
+    # _on_voice_synthesis_finished()/_on_voice_synthesis_error()
+    # ci-dessus. Ce n'est pas un bug aujourd'hui : TransmissionService
+    # ne permet qu'UNE SEULE transmission à la fois (is_transmitting,
+    # voir sa docstring) et aucun autre consommateur ne l'utilise encore
+    # dans la Suite. LE JOUR OÙ UN SECOND CONSOMMATEUR DE
+    # transmission_service APPARAÎT (ex. Radio Control, une future file
+    # d'attente), CE FILTRAGE DEVRA ÊTRE AJOUTÉ ICI (par owner, transmis
+    # à transmit()) pour ne jamais réagir à la transmission de
+    # quelqu'un d'autre.
+    def _on_transmission_finished(self) -> None:
+        if not self._announcing:
+            return  # transmission d'un autre consommateur éventuel de transmission_service
+
+        self._announcing = False
+        self._update_announce_button_enabled()
+        self.statusBar().showMessage("Annonce transmise.", 3000)
+
+    def _on_transmission_error(self, message: str) -> None:
+        if not self._announcing:
+            return
+
+        self._announcing = False
+        self._update_announce_button_enabled()
+        self.statusBar().showMessage(f"Erreur de transmission : {message}", 5000)
 
 
 class _MessageTemplateDialog(QDialog):
