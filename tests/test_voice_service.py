@@ -12,9 +12,17 @@ synthesize() est asynchrone (QThreadPool) : _wait_for_signal() pompe
 la boucle d'événements Qt jusqu'à réception du signal attendu, avec un
 délai de sécurité borné pour ne jamais bloquer indéfiniment un test en
 cas de régression.
+
+prune_cache() est synchrone (aucun QThreadPool) : les tests qui le
+concernent n'ont pas besoin de _wait_for_signal(). L'âge des fichiers
+est contrôlé directement via os.utime() (_write_wav(..., age_s=...))
+plutôt qu'en attendant réellement — déterministe et instantané.
 """
 
+import os
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PySide6.QtCore import QEventLoop, QTimer
@@ -22,6 +30,7 @@ from PySide6.QtWidgets import QApplication
 
 from libraries.voice.voice_params import VoiceParams
 from libraries.voice.voice_service import VoiceService
+import libraries.voice.voice_service as voice_service_module
 
 
 @pytest.fixture(scope="module")
@@ -62,6 +71,16 @@ def _wait_for_signal(signal, timeout_ms=3000):
     signal.disconnect(_capture)
 
     return captured.get("args")
+
+
+def _write_wav(path: Path, size: int = 8, age_s: float = 0) -> None:
+    """Crée un faux .wav de `size` octets, vieux de `age_s` secondes (mtime)."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"\x00" * size)
+    if age_s:
+        timestamp = time.time() - age_s
+        os.utime(path, (timestamp, timestamp))
 
 
 @pytest.fixture
@@ -256,3 +275,185 @@ def test_engine_exception_emits_synthesis_error(qapp, tmp_path):
     received_id, message = args
     assert received_id == request_id
     assert "moteur en panne" in message
+
+
+# ------------------------------------------------------------------
+# prune_cache() — éviction par âge
+# ------------------------------------------------------------------
+
+def test_prune_cache_removes_old_files_from_permanent_cache_by_age(service):
+    old_path = service._cache_dir / "old.wav"
+    _write_wav(old_path, age_s=40 * 86400)  # 40 jours
+    recent_path = service._cache_dir / "recent.wav"
+    _write_wav(recent_path, age_s=0)
+
+    result = service.prune_cache(max_cache_age_days=30, max_tmp_age_hours=None, max_total_size_mb=None)
+
+    assert not old_path.exists()
+    assert recent_path.exists()
+    assert result.removed_files == 1
+
+
+def test_prune_cache_removes_old_files_from_tmp_by_age(service):
+    old_path = service._tmp_dir / "old.wav"
+    _write_wav(old_path, age_s=30 * 3600)  # 30 heures
+    recent_path = service._tmp_dir / "recent.wav"
+    _write_wav(recent_path, age_s=0)
+
+    result = service.prune_cache(max_cache_age_days=None, max_tmp_age_hours=24, max_total_size_mb=None)
+
+    assert not old_path.exists()
+    assert recent_path.exists()
+    assert result.removed_files == 1
+
+
+def test_prune_cache_age_criterion_disabled_by_none_keeps_old_files(service):
+    old_path = service._cache_dir / "old.wav"
+    _write_wav(old_path, age_s=100 * 86400)
+
+    result = service.prune_cache(max_cache_age_days=None, max_tmp_age_hours=None, max_total_size_mb=None)
+
+    assert old_path.exists()
+    assert result.removed_files == 0
+    assert result.freed_bytes == 0
+
+
+# ------------------------------------------------------------------
+# prune_cache() — éviction par taille totale
+# ------------------------------------------------------------------
+
+def test_prune_cache_evicts_oldest_first_when_over_size_budget(service):
+    _write_wav(service._cache_dir / "a.wav", size=500, age_s=300)
+    _write_wav(service._cache_dir / "b.wav", size=500, age_s=200)
+    _write_wav(service._cache_dir / "c.wav", size=500, age_s=100)
+
+    max_total_bytes = 1000
+    result = service.prune_cache(
+        max_cache_age_days=None,
+        max_tmp_age_hours=None,
+        max_total_size_mb=max_total_bytes / (1024 * 1024),
+    )
+
+    remaining = {p.name for p in service._cache_dir.glob("*.wav")}
+    assert remaining == {"b.wav", "c.wav"}  # "a.wav" = le plus ancien, supprimé en premier
+    assert result.removed_files == 1
+    assert result.freed_bytes == 500
+
+
+def test_prune_cache_size_criterion_disabled_by_none_keeps_oversized_cache(service):
+    _write_wav(service._cache_dir / "a.wav", size=500, age_s=300)
+    _write_wav(service._cache_dir / "b.wav", size=500, age_s=200)
+
+    result = service.prune_cache(max_cache_age_days=None, max_tmp_age_hours=None, max_total_size_mb=None)
+
+    assert len(list(service._cache_dir.glob("*.wav"))) == 2
+    assert result.removed_files == 0
+
+
+# ------------------------------------------------------------------
+# prune_cache() — sécurité vis-à-vis d'une synthèse en cours
+# ------------------------------------------------------------------
+
+def test_prune_cache_never_removes_a_file_referenced_by_a_pending_task(service):
+    protected_path = service._cache_dir / "in_progress.wav"
+    _write_wav(protected_path, size=10_000, age_s=100 * 86400)
+
+    service._pending_tasks["fake-request-id"] = SimpleNamespace(_output_path=protected_path)
+
+    result = service.prune_cache(max_cache_age_days=1, max_tmp_age_hours=1, max_total_size_mb=0.0001)
+
+    assert protected_path.exists()
+    assert result.removed_files == 0
+
+
+# ------------------------------------------------------------------
+# prune_cache() — ne traite que les .wav
+# ------------------------------------------------------------------
+
+def test_prune_cache_ignores_non_wav_files(service):
+    other_path = service._cache_dir / "notes.txt"
+    other_path.write_text("keep me")
+    old_timestamp = time.time() - 100 * 86400
+    os.utime(other_path, (old_timestamp, old_timestamp))
+
+    result = service.prune_cache(max_cache_age_days=1, max_tmp_age_hours=1, max_total_size_mb=0.0000001)
+
+    assert other_path.exists()
+    assert result.removed_files == 0
+
+
+# ------------------------------------------------------------------
+# prune_cache() — PruneResult toujours valide
+# ------------------------------------------------------------------
+
+def test_prune_cache_returns_prune_result_with_accurate_counts(service):
+    _write_wav(service._cache_dir / "old.wav", size=123, age_s=40 * 86400)
+
+    result = service.prune_cache(max_cache_age_days=30, max_tmp_age_hours=None, max_total_size_mb=None)
+
+    assert result.removed_files == 1
+    assert result.freed_bytes == 123
+
+
+def test_prune_cache_returns_zeroed_result_when_nothing_removed(service):
+    _write_wav(service._cache_dir / "recent.wav", age_s=0)
+
+    result = service.prune_cache()
+
+    assert result.removed_files == 0
+    assert result.freed_bytes == 0
+
+
+def test_prune_cache_returns_zeroed_result_on_an_empty_cache(service):
+    result = service.prune_cache()
+
+    assert result.removed_files == 0
+    assert result.freed_bytes == 0
+
+
+# ------------------------------------------------------------------
+# prune_cache() — une seule référence de temps pour toutes les passes
+# ------------------------------------------------------------------
+
+def test_prune_cache_uses_a_single_time_reference_for_all_age_comparisons(service, monkeypatch):
+    _write_wav(service._cache_dir / "old.wav", age_s=40 * 86400)
+    _write_wav(service._tmp_dir / "old.wav", age_s=30 * 3600)
+
+    call_count = {"n": 0}
+    real_time = voice_service_module.time.time
+
+    def counting_time():
+        call_count["n"] += 1
+        return real_time()
+
+    monkeypatch.setattr(voice_service_module.time, "time", counting_time)
+
+    service.prune_cache()
+
+    assert call_count["n"] == 1
+
+
+# ------------------------------------------------------------------
+# prune_cache() — résilience si une suppression échoue
+# ------------------------------------------------------------------
+
+def test_prune_cache_continues_when_a_deletion_fails(service, monkeypatch):
+    failing_path = service._cache_dir / "locked.wav"
+    _write_wav(failing_path, age_s=40 * 86400)
+    ok_path = service._cache_dir / "old.wav"
+    _write_wav(ok_path, age_s=40 * 86400)
+
+    real_unlink = Path.unlink
+
+    def fake_unlink(self, *args, **kwargs):
+        if self == failing_path:
+            raise OSError("fichier verrouillé")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", fake_unlink)
+
+    result = service.prune_cache(max_cache_age_days=30, max_tmp_age_hours=None, max_total_size_mb=None)
+
+    assert failing_path.exists()
+    assert not ok_path.exists()
+    assert result.removed_files == 1

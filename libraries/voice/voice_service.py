@@ -44,8 +44,42 @@ très rentable à mettre en cache) ou dynamique (l'échange contest avec
 %RST%/%SERIAL%, quasi jamais réutilisé, cache inutile qui ferait
 seulement grossir data/voice_cache/ indéfiniment). Un résultat non
 cacheable est écrit dans data/voice_cache/tmp/ (sous-dossier distinct
-de la clé de cache permanente) — nettoyage détaillé prévu à l'étape
-suivante (prune_cache()).
+de la clé de cache permanente), nettoyé par prune_cache() (étape 4c,
+voir plus bas).
+
+Nettoyage du cache (prune_cache(), étape 4c) : trois passes
+indépendantes, chacune désactivable (paramètre à None) :
+  1. tmp/ : supprime les *.wav plus vieux que max_tmp_age_hours —
+     ces fichiers ne sont jamais relus par une clé de cache, un simple
+     critère d'âge suffit.
+  2. data/voice_cache/ (racine, jamais tmp/) : supprime les *.wav plus
+     vieux que max_cache_age_days.
+  3. Si la taille totale des *.wav restants à la racine dépasse
+     max_total_size_mb, supprime les plus anciens un par un jusqu'à
+     repasser sous le seuil.
+Ne traite jamais que les fichiers *.wav (jamais un dossier ou un
+fichier d'une autre nature qui se serait glissé là).
+
+Sécurité vis-à-vis d'une synthèse en cours : self._pending_tasks
+référence les chemins de sortie des tâches actuellement exécutées par
+le QThreadPool (voir plus haut) — ces chemins sont systématiquement
+exclus de toute suppression, quel que soit leur âge ou leur taille.
+Protection redondante avec le tri "plus ancien d'abord" (un fichier en
+cours d'écriture a toujours le mtime le plus récent, donc n'est
+structurellement jamais choisi en premier) mais gardée en plus car peu
+coûteuse.
+
+Résilience : chaque suppression individuelle est protégée
+(OSError) — un fichier verrouillé (ex. lu au même moment par
+AudioOutputService sous Windows) est journalisé et ignoré, jamais une
+exception qui remonterait à l'appelant. Toujours synchrone (pas de
+QThreadPool) : uniquement des opérations fichier, jamais de synthèse.
+
+Pas encore de déclenchement automatique : comme les trois autres
+briques de l'architecture Voix, prune_cache() attend son premier vrai
+consommateur (scheduler applicatif ou appel manuel) avant d'être
+câblée quelque part — cohérent avec la validation étape par étape déjà
+suivie pour AudioOutputService/PTTGuard/TransmissionService.
 
 Sélection automatique de moteur : "auto" (params.engine=None) essaie
 Pyttsx3Engine, seul moteur disponible à cette étape. Un moteur
@@ -90,6 +124,7 @@ from __future__ import annotations
 import hashlib
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
@@ -100,6 +135,14 @@ from libraries.voice.logger import logger
 from libraries.voice.voice_params import VoiceParams
 
 DEFAULT_CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "voice_cache"
+
+
+@dataclass(frozen=True, slots=True)
+class PruneResult:
+    """Bilan d'un passage de VoiceService.prune_cache() — voir sa docstring."""
+
+    removed_files: int
+    freed_bytes: int
 
 
 class _SynthesisSignals(QObject):
@@ -246,3 +289,121 @@ class VoiceService(QObject):
         self._pending_tasks.pop(request_id, None)
         logger.synthesis_error(owner, message)
         self.synthesis_error.emit(request_id, message)
+
+    # ------------------------------------------------------------------
+    # Nettoyage du cache (prune_cache) — voir docstring du module
+    # ------------------------------------------------------------------
+
+    def prune_cache(
+        self,
+        max_cache_age_days: float | None = 30,
+        max_tmp_age_hours: float | None = 24,
+        max_total_size_mb: float | None = 200,
+    ) -> PruneResult:
+        """
+        Nettoie data/voice_cache/ en trois passes indépendantes (chacune
+        désactivable via None) — voir docstring du module pour le détail
+        et les garanties de sécurité. Ne touche jamais qu'à des *.wav.
+        """
+
+        now = time.time()
+        protected_paths = {task._output_path for task in self._pending_tasks.values()}
+
+        removed_files = 0
+        freed_bytes = 0
+
+        if max_tmp_age_hours is not None:
+            n, b = self._remove_files_older_than(
+                self._tmp_dir, max_tmp_age_hours * 3600.0, now, protected_paths
+            )
+            removed_files += n
+            freed_bytes += b
+
+        if max_cache_age_days is not None:
+            n, b = self._remove_files_older_than(
+                self._cache_dir, max_cache_age_days * 86400.0, now, protected_paths
+            )
+            removed_files += n
+            freed_bytes += b
+
+        if max_total_size_mb is not None:
+            n, b = self._enforce_total_size(
+                self._cache_dir, max_total_size_mb * 1024 * 1024, protected_paths
+            )
+            removed_files += n
+            freed_bytes += b
+
+        logger.cache_pruned(removed_files, freed_bytes)
+        return PruneResult(removed_files=removed_files, freed_bytes=freed_bytes)
+
+    def _remove_files_older_than(
+        self,
+        directory: Path,
+        max_age_s: float,
+        now: float,
+        protected_paths: set[Path],
+    ) -> tuple[int, int]:
+        removed_files = 0
+        freed_bytes = 0
+
+        for path in directory.glob("*.wav"):
+            if path in protected_paths:
+                continue
+            try:
+                age_s = now - path.stat().st_mtime
+            except OSError as exc:
+                logger.cache_prune_file_error(str(path), str(exc))
+                continue
+            if age_s < max_age_s:
+                continue
+            removed_files_delta, freed_bytes_delta = self._try_remove(path)
+            removed_files += removed_files_delta
+            freed_bytes += freed_bytes_delta
+
+        return removed_files, freed_bytes
+
+    def _enforce_total_size(
+        self, directory: Path, max_total_bytes: float, protected_paths: set[Path]
+    ) -> tuple[int, int]:
+        entries: list[tuple[float, int, Path]] = []
+        total_bytes = 0
+
+        for path in directory.glob("*.wav"):
+            try:
+                stat = path.stat()
+            except OSError as exc:
+                logger.cache_prune_file_error(str(path), str(exc))
+                continue
+            entries.append((stat.st_mtime, stat.st_size, path))
+            total_bytes += stat.st_size
+
+        if total_bytes <= max_total_bytes:
+            return 0, 0
+
+        entries.sort(key=lambda entry: entry[0])  # plus ancien d'abord
+
+        removed_files = 0
+        freed_bytes = 0
+
+        for _mtime, size, path in entries:
+            if total_bytes <= max_total_bytes:
+                break
+            if path in protected_paths:
+                continue
+            removed_files_delta, freed_bytes_delta = self._try_remove(path)
+            if removed_files_delta:
+                total_bytes -= size
+            removed_files += removed_files_delta
+            freed_bytes += freed_bytes_delta
+
+        return removed_files, freed_bytes
+
+    @staticmethod
+    def _try_remove(path: Path) -> tuple[int, int]:
+        try:
+            size = path.stat().st_size
+            path.unlink()
+        except OSError as exc:
+            logger.cache_prune_file_error(str(path), str(exc))
+            return 0, 0
+        return 1, size

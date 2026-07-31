@@ -85,5 +85,17 @@ class VoiceLogger:
     def synthesis_error(self, owner: str | None, reason: str) -> None:
         self.warning(f"Erreur de synthèse (demandeur={owner or 'inconnu'}) — {reason}")
 
+    # ------------------------------------------------------------------
+    # Nettoyage du cache (prune_cache) — étape 4c
+    # ------------------------------------------------------------------
+
+    def cache_pruned(self, removed_count: int, freed_bytes: int) -> None:
+        if removed_count <= 0:
+            return
+        self.info(f"Cache vocal nettoyé (fichiers supprimés={removed_count}, espace libéré={freed_bytes} octets)")
+
+    def cache_prune_file_error(self, path: str, reason: str) -> None:
+        self.warning(f"Suppression impossible (fichier={path}) — {reason}")
+
 
 logger = VoiceLogger()
