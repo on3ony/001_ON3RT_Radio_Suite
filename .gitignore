@@ -48,6 +48,7 @@ Desktop.ini
 # ==========================
 data/*.db
 data/archives/
+data/voice_cache/
 config/qrz.json
 
 # Temporary packages

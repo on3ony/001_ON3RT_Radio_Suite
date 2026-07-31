@@ -1,0 +1,258 @@
+"""
+Tests de libraries/voice/voice_service.py.
+
+Le moteur pyttsx3 réel n'est jamais utilisé ici : chaque test remplace
+l'entrée "pyttsx3" du registre interne de VoiceService par un moteur
+simulé (_FakeEngine) — jamais de vraie synthèse dans la suite
+automatisée (lente, dépendante des voix installées sur la machine). La
+validation avec le vrai pyttsx3 (écoute réelle du résultat) est faite
+manuellement, comme le reste des garanties matérielles/OS de la Suite.
+
+synthesize() est asynchrone (QThreadPool) : _wait_for_signal() pompe
+la boucle d'événements Qt jusqu'à réception du signal attendu, avec un
+délai de sécurité borné pour ne jamais bloquer indéfiniment un test en
+cas de régression.
+"""
+
+from pathlib import Path
+
+import pytest
+from PySide6.QtCore import QEventLoop, QTimer
+from PySide6.QtWidgets import QApplication
+
+from libraries.voice.voice_params import VoiceParams
+from libraries.voice.voice_service import VoiceService
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    app = QApplication.instance() or QApplication([])
+    yield app
+
+
+class _FakeEngine:
+    def __init__(self, available=True, raise_error=None, content=b"FAKE_WAV"):
+        self.calls = []
+        self._available = available
+        self._raise_error = raise_error
+        self._content = content
+
+    def is_available(self):
+        return self._available
+
+    def synthesize(self, text, params, output_path):
+        self.calls.append((text, params, output_path))
+        if self._raise_error is not None:
+            raise self._raise_error
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(self._content)
+
+
+def _wait_for_signal(signal, timeout_ms=3000):
+    loop = QEventLoop()
+    captured = {}
+
+    def _capture(*args):
+        captured["args"] = args
+        loop.quit()
+
+    signal.connect(_capture)
+    QTimer.singleShot(timeout_ms, loop.quit)
+    loop.exec()
+    signal.disconnect(_capture)
+
+    return captured.get("args")
+
+
+@pytest.fixture
+def fake_engine():
+    return _FakeEngine()
+
+
+@pytest.fixture
+def service(qapp, tmp_path, fake_engine):
+    svc = VoiceService(cache_dir=tmp_path / "voice_cache")
+    svc._engines["pyttsx3"] = fake_engine
+    return svc
+
+
+# ------------------------------------------------------------------
+# Cycle nominal
+# ------------------------------------------------------------------
+
+def test_synthesize_calls_engine_and_emits_finished(service, fake_engine):
+    request_id = service.synthesize("CQ Concours", owner="test")
+
+    args = _wait_for_signal(service.synthesis_finished)
+
+    assert args is not None
+    received_id, output_path = args
+    assert received_id == request_id
+    assert Path(output_path).exists()
+    assert len(fake_engine.calls) == 1
+
+
+def test_synthesize_returns_a_request_id(service):
+    request_id = service.synthesize("CQ", owner="test")
+
+    assert isinstance(request_id, str)
+    assert len(request_id) > 0
+
+
+# ------------------------------------------------------------------
+# Variables dynamiques (avant calcul de la clé de cache)
+# ------------------------------------------------------------------
+
+def test_synthesize_resolves_variables_before_synthesis(service, fake_engine):
+    service.synthesize("%RST% %SERIAL%", values={"RST": "599", "SERIAL": "007"}, owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    assert fake_engine.calls[0][0] == "599 007"
+
+
+def test_different_variable_values_produce_different_cache_files(service, fake_engine):
+    service.synthesize("%CALL%", values={"CALL": "F4AAA"}, owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    service.synthesize("%CALL%", values={"CALL": "F4BBB"}, owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    assert len(fake_engine.calls) == 2
+    assert fake_engine.calls[0][2] != fake_engine.calls[1][2]
+
+
+def test_resolved_text_matches_regardless_of_how_it_was_produced(service, fake_engine):
+    """Déterminisme : un gabarit résolu et le même texte passé littéralement produisent la même clé."""
+
+    service.synthesize("%CALL%", values={"CALL": "F4AAA"}, owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    service.synthesize("F4AAA", owner="test")
+    args = _wait_for_signal(service.synthesis_finished)
+
+    assert args is not None
+    assert len(fake_engine.calls) == 1  # deuxième appel = cache hit, moteur jamais rappelé
+
+
+# ------------------------------------------------------------------
+# Cache HIT / MISS
+# ------------------------------------------------------------------
+
+def test_second_identical_call_is_a_cache_hit(service, fake_engine):
+    service.synthesize("CQ", owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    service.synthesize("CQ", owner="test")
+    args = _wait_for_signal(service.synthesis_finished)
+
+    assert len(fake_engine.calls) == 1
+    assert args is not None
+
+
+def test_different_params_produce_different_cache_entries(service, fake_engine):
+    service.synthesize("CQ", params=VoiceParams(rate=150), owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    service.synthesize("CQ", params=VoiceParams(rate=200), owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    assert len(fake_engine.calls) == 2
+
+
+def test_compute_cache_key_is_deterministic(service):
+    params = VoiceParams(language="FR", rate=180)
+
+    key1 = service._compute_cache_key("CQ Concours", "pyttsx3", params)
+    key2 = service._compute_cache_key("CQ Concours", "pyttsx3", params)
+
+    assert key1 == key2
+
+
+def test_compute_cache_key_differs_for_different_text(service):
+    params = VoiceParams()
+
+    key1 = service._compute_cache_key("CQ", "pyttsx3", params)
+    key2 = service._compute_cache_key("QRZ", "pyttsx3", params)
+
+    assert key1 != key2
+
+
+# ------------------------------------------------------------------
+# cacheable=False
+# ------------------------------------------------------------------
+
+def test_cacheable_false_is_never_reused(service, fake_engine):
+    service.synthesize("599 001", cacheable=False, owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    service.synthesize("599 001", cacheable=False, owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    assert len(fake_engine.calls) == 2  # jamais de cache hit
+
+
+def test_cacheable_false_writes_to_the_tmp_subdirectory(service, fake_engine):
+    service.synthesize("599 001", cacheable=False, owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    assert fake_engine.calls[0][2].parent.name == "tmp"
+
+
+def test_cacheable_true_is_the_default_and_does_not_use_tmp(service, fake_engine):
+    service.synthesize("CQ", owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    assert fake_engine.calls[0][2].parent.name != "tmp"
+
+
+# ------------------------------------------------------------------
+# Sélection de moteur
+# ------------------------------------------------------------------
+
+def test_default_engine_is_pyttsx3(service, fake_engine):
+    service.synthesize("CQ", owner="test")
+    _wait_for_signal(service.synthesis_finished)
+
+    assert len(fake_engine.calls) == 1
+
+
+def test_requesting_an_unknown_engine_falls_back_to_pyttsx3(service, fake_engine):
+    service.synthesize("CQ", params=VoiceParams(engine="does_not_exist"), owner="test")
+    args = _wait_for_signal(service.synthesis_finished)
+
+    assert args is not None
+    assert len(fake_engine.calls) == 1
+
+
+def test_requesting_an_installed_but_unavailable_engine_falls_back(qapp, tmp_path):
+    unavailable = _FakeEngine(available=False)
+    fallback = _FakeEngine()
+
+    svc = VoiceService(cache_dir=tmp_path / "voice_cache")
+    svc._engines["xtts"] = unavailable
+    svc._engines["pyttsx3"] = fallback
+
+    svc.synthesize("CQ", params=VoiceParams(engine="xtts"), owner="test")
+    _wait_for_signal(svc.synthesis_finished)
+
+    assert unavailable.calls == []
+    assert len(fallback.calls) == 1
+
+
+# ------------------------------------------------------------------
+# Erreurs
+# ------------------------------------------------------------------
+
+def test_engine_exception_emits_synthesis_error(qapp, tmp_path):
+    failing = _FakeEngine(raise_error=RuntimeError("moteur en panne"))
+
+    svc = VoiceService(cache_dir=tmp_path / "voice_cache")
+    svc._engines["pyttsx3"] = failing
+
+    request_id = svc.synthesize("CQ", owner="test")
+    args = _wait_for_signal(svc.synthesis_error)
+
+    assert args is not None
+    received_id, message = args
+    assert received_id == request_id
+    assert "moteur en panne" in message

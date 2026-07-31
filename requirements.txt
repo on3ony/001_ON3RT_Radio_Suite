@@ -43,3 +43,13 @@ psutil>=7.2.2
 # manipuler les échantillons audio (lecture WAV, ré-échantillonnage).
 sounddevice>=0.5.5
 numpy>=2.4.2
+
+# --- Synthèse vocale (VoiceService) -------------------------------------
+# Moteur de voix système (SAPI5) par défaut de VoiceService
+# (libraries/voice/engines.py::Pyttsx3Engine) — toujours disponible en
+# pratique sous Windows. pywin32 (module "pythoncom") est importé
+# directement pour initialiser/libérer explicitement l'appartement COM
+# autour de chaque synthèse, exécutée sur un thread du QThreadPool
+# global (voir docstring d'engines.py).
+pyttsx3>=2.99
+pywin32>=312
