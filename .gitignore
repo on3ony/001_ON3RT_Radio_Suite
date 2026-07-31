@@ -49,6 +49,7 @@ Desktop.ini
 data/*.db
 data/archives/
 data/voice_cache/
+data/piper_voices/
 config/qrz.json
 
 # Temporary packages

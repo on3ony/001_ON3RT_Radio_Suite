@@ -82,11 +82,16 @@ câblée quelque part — cohérent avec la validation étape par étape déjà
 suivie pour AudioOutputService/PTTGuard/TransmissionService.
 
 Sélection automatique de moteur : "auto" (params.engine=None) essaie
-Pyttsx3Engine, seul moteur disponible à cette étape. Un moteur
-explicitement demandé mais indisponible retombe sur pyttsx3, avec un
-avertissement journalisé — jamais une erreur qui bloquerait
-l'appelant (cohérent avec "la Suite reste pleinement fonctionnelle
-sans Coqui").
+TOUJOURS Pyttsx3Engine, même depuis l'ajout de PiperEngine comme second
+moteur (étape 4f) — un choix délibéré, pas un oubli : Piper reste
+strictement optionnel (paquet piper-tts non installé par défaut,
+modèles de voix jamais téléchargés automatiquement, à installer
+manuellement dans data/piper_voices/), donc "auto" ne doit jamais
+dépendre de sa présence. Piper n'est utilisé que sur demande explicite
+(VoiceParams(engine="piper")). Un moteur explicitement demandé mais
+indisponible (Piper y compris) retombe sur pyttsx3, avec un
+avertissement journalisé — jamais une erreur qui bloquerait l'appelant
+(cohérent avec "la Suite reste pleinement fonctionnelle sans Piper").
 
 Exécution en arrière-plan (QThreadPool + QRunnable) : première
 fonctionnalité de la Suite nécessitant réellement un travail hors du
@@ -130,7 +135,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
 
 from libraries.text.variable_resolver import resolve_variables
-from libraries.voice.engines import Pyttsx3Engine
+from libraries.voice.engines import PiperEngine, Pyttsx3Engine
 from libraries.voice.logger import logger
 from libraries.voice.voice_params import VoiceParams
 
@@ -187,6 +192,7 @@ class VoiceService(QObject):
 
         self._engines = {
             "pyttsx3": Pyttsx3Engine(),
+            "piper": PiperEngine(),
         }
 
         # Références gardées le temps de la synthèse : QRunnable n'est

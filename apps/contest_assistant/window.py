@@ -34,6 +34,26 @@ le bouton. cacheable=False délibérément : un échange de concours avec
 asynchrone (signaux Qt) à chaque étape : l'interface ne se bloque
 jamais, ni pendant la synthèse ni pendant la transmission.
 
+Moteur explicitement demandé (étape 4f) : VoiceParams(engine="piper",
+voice_profile="fr_FR-tom-medium") — choix délibéré, jamais laissé à
+"auto" (qui reste pyttsx3 partout ailleurs dans la Suite, voir
+libraries/voice/voice_service.py). Piper retombe automatiquement sur
+pyttsx3 s'il n'est pas disponible (voir PiperEngine.is_available()),
+donc "Annoncer" fonctionne aussi sans Piper installé, avec une voix
+moins naturelle.
+
+CALL/MYCALL épelés selon l'alphabet radio international avant
+synthèse (libraries/voice/radio_phonetics.py::to_phonetic_spelling) :
+"ON3RT" devient "Oscar November Trois Roméo Tango" pour que la
+synthèse le prononce correctement, au lieu de le lire comme un mot
+ordinaire (espeak-ng, utilisé par Piper, lisait "ON" comme le mot
+français "on"). Transformation appliquée UNIQUEMENT à la copie locale
+envoyée à voice_service.synthesize() — jamais aux modèles de message,
+jamais à self.edit_call/self.station_service, jamais à l'historique :
+_send_template() (Envoyer) continue de résoudre %CALL%/%MYCALL% avec
+les valeurs brutes, sans aucun changement. RST/SERIAL ne sont pas
+concernés par cette étape (non ambigus pour la synthèse).
+
 Actif seulement si voice_service ET transmission_service ont été
 fournis (sinon désactivé en permanence — dégradation propre plutôt
 qu'un clic qui ne ferait rien ou lèverait une exception), et désactivé
@@ -185,6 +205,8 @@ from PySide6.QtWidgets import (
 from libraries.text.variable_resolver import resolve_variables
 from libraries.ui import colors
 from libraries.ui.base_window import BaseWindow
+from libraries.voice.radio_phonetics import to_phonetic_spelling
+from libraries.voice.voice_params import VoiceParams
 
 from apps.contest.contest_properties_dialog import CONTEST_NAMES
 from apps.contest_assistant.message_service import ContestMessageService
@@ -687,11 +709,22 @@ class ContestAssistantWindow(BaseWindow):
             QMessageBox.information(self, "Aucune sélection", "Sélectionnez un message à annoncer.")
             return
 
+        language = self.message_service.language
+        raw_mycall = self.station_service.callsign if self.station_service is not None else ""
+
+        # Valeurs dédiées à la voix, jamais partagées avec _send_template() :
+        # CALL/MYCALL sont épelés selon l'alphabet radio international
+        # (libraries/voice/radio_phonetics.py) pour que la synthèse
+        # prononce correctement l'indicatif ("Oscar November Trois Roméo
+        # Tango"), au lieu de le lire comme un mot ordinaire. Le texte
+        # affiché/enregistré (interface, historique, modèles) ne voit
+        # jamais cette version : seule cette copie locale, destinée
+        # uniquement à la synthèse, est transformée.
         values = {
-            "CALL": self.edit_call.text().strip(),
+            "CALL": to_phonetic_spelling(self.edit_call.text().strip(), language),
             "RST": self.edit_rst.text().strip(),
             "SERIAL": f"{self.message_service.next_serial:03d}",
-            "MYCALL": self.station_service.callsign if self.station_service is not None else "",
+            "MYCALL": to_phonetic_spelling(raw_mycall, language),
         }
 
         text = self.message_service.active_text(template)
@@ -701,8 +734,14 @@ class ContestAssistantWindow(BaseWindow):
         self._update_announce_button_enabled()
         self.statusBar().showMessage("Synthèse vocale en cours...", 0)
 
+        # Piper + fr_FR-tom-medium demandés explicitement (option B) :
+        # "auto" reste pyttsx3 partout ailleurs dans la Suite, voir
+        # docstring du module.
         self._announce_request_id = self.voice_service.synthesize(
-            resolved, cacheable=False, owner="contest_assistant"
+            resolved,
+            params=VoiceParams(engine="piper", voice_profile="fr_FR-tom-medium", language=language),
+            cacheable=False,
+            owner="contest_assistant",
         )
 
     def _on_voice_synthesis_finished(self, request_id: str, output_path: str) -> None:

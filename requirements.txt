@@ -53,3 +53,14 @@ numpy>=2.4.2
 # global (voir docstring d'engines.py).
 pyttsx3>=2.99
 pywin32>=312
+
+# Second moteur de VoiceService, optionnel (libraries/voice/engines.py::
+# PiperEngine — étape 4f) : voix neuronales de meilleure qualité,
+# jamais utilisé par "auto" (params.engine=None reste pyttsx3), choisi
+# explicitement via VoiceParams(engine="piper"). Depuis piper-tts>=1.3.0,
+# espeak-ng et onnxruntime sont embarqués dans le wheel pip — aucune
+# installation système séparée requise sous Windows. Les modèles de
+# voix (.onnx + .onnx.json) ne sont PAS installés par pip : à déposer
+# manuellement dans data/piper_voices/ (jamais téléchargés
+# automatiquement par la Suite, voir docstring de PiperEngine).
+piper-tts>=1.3.0

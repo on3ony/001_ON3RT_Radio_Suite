@@ -542,9 +542,72 @@ def test_announce_selected_message_starts_synthesis_with_resolved_text(window_wi
 
     assert len(voice_service.calls) == 1
     call = voice_service.calls[0]
-    assert call["text"] == "CQ Concours de ON3RT"
+    # MYCALL ("ON3RT") est désormais épelé selon l'alphabet radio international
+    # avant synthèse -- voir docstring du module, section Annoncer. "Novembre"
+    # (pas "November") en français -- voir radio_phonetics.py::_LETTERS_FR.
+    assert call["text"] == "CQ Concours de Oscar Novembre Trois Roméo Tango"
     assert call["cacheable"] is False  # échange dynamique, jamais mis en cache -- voir docstring du module
     assert call["owner"] == "contest_assistant"
+
+
+def test_announce_uses_piper_with_the_recommended_voice_profile(window_with_voice, voice_service):
+    """Option B (étape 4f) : Piper + fr_FR-tom-medium demandés explicitement, jamais "auto"."""
+
+    window_with_voice.template_table.selectRow(0)
+
+    window_with_voice.btn_announce.click()
+
+    params = voice_service.calls[0]["params"]
+    assert params.engine == "piper"
+    assert params.voice_profile == "fr_FR-tom-medium"
+
+
+def test_announce_phonetically_spells_call_and_mycall_but_not_rst_or_serial(
+    window_with_voice, voice_service, fake_dialog_result
+):
+    fake_dialog_result["values"] = (
+        "Echange complet",
+        "%CALL% %RST% %SERIAL% %MYCALL%",
+        "%CALL% %RST% %SERIAL% %MYCALL%",
+    )
+    window_with_voice.btn_add_template.click()
+    window_with_voice.template_table.selectRow(1)
+
+    window_with_voice.edit_call.setText("F4XYZ")
+    window_with_voice.edit_rst.setText("599")
+
+    window_with_voice.btn_announce.click()
+
+    call_text = voice_service.calls[0]["text"]
+    assert "Foxtrot Quatre X-ray Yankee Zoulou" in call_text  # %CALL% épelé
+    assert "Oscar Novembre Trois Roméo Tango" in call_text  # %MYCALL% épelé
+    assert "599" in call_text  # %RST% inchangé
+    assert "001" in call_text  # %SERIAL% inchangé
+
+
+def test_announce_uses_english_phonetic_spelling_when_the_message_language_is_english(
+    window_with_voice, voice_service
+):
+    window_with_voice.btn_language.click()  # EN
+    window_with_voice.template_table.selectRow(0)
+
+    window_with_voice.btn_announce.click()
+
+    assert voice_service.calls[0]["text"] == "CQ Contest Oscar November Three Romeo Tango"
+
+
+def test_announce_never_modifies_the_displayed_callsign_or_station_service(
+    window_with_voice, station_service
+):
+    """La transformation phonétique ne touche jamais l'indicatif affiché ni StationService."""
+
+    window_with_voice.template_table.selectRow(0)
+    window_with_voice.edit_call.setText("F4XYZ")
+
+    window_with_voice.btn_announce.click()
+
+    assert window_with_voice.edit_call.text() == "F4XYZ"
+    assert station_service.callsign == "ON3RT"
 
 
 def test_announce_disables_the_button_while_in_flight(window_with_voice):
