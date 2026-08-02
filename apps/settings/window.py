@@ -2,8 +2,8 @@
 ON3RT Radio Suite
 apps/settings/window.py
 
-Fenêtre du module Settings — assemble les quatre panneaux (Station,
-Radio, Réseau, Services) dans un QTabWidget. Hérite de BaseWindow,
+Fenêtre du module Settings — assemble les cinq panneaux (Station,
+Radio, Réseau, Services, CW) dans un QTabWidget. Hérite de BaseWindow,
 comme Scanner/DX Cluster/Frequency Bank/Logbook/Radio Control, pour le
 même socle visuel (logo, titre, barre d'état) que le reste de la
 suite.
@@ -26,6 +26,7 @@ from apps.settings.panels.station_panel import StationPanel
 from apps.settings.panels.radio_panel import RadioPanel
 from apps.settings.panels.network_panel import NetworkPanel
 from apps.settings.panels.services_panel import ServicesPanel
+from apps.settings.panels.cw_panel import CWPanel
 
 
 class SettingsWindow(BaseWindow):
@@ -53,10 +54,12 @@ class SettingsWindow(BaseWindow):
         self.radio_panel = RadioPanel(self.radio_service)
         self.network_panel = NetworkPanel(self.settings_service)
         self.services_panel = ServicesPanel(self.settings_service)
+        self.cw_panel = CWPanel(self.settings_service)
 
         self.tabs.addTab(self.station_panel, "Station")
         self.tabs.addTab(self.radio_panel, "Radio")
         self.tabs.addTab(self.network_panel, "Réseau")
         self.tabs.addTab(self.services_panel, "Services")
+        self.tabs.addTab(self.cw_panel, "CW")
 
         self.content_layout.addWidget(self.tabs)

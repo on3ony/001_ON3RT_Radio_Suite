@@ -10,7 +10,9 @@ import logging
 from libraries.cat.serial_transport import SerialTransport
 from libraries.cat.civ_protocol import CIVProtocol
 from libraries.cat.parser import CIVParser
+from libraries.cat.cw_message import CWMessageManager
 from libraries.cat.frequency import FrequencyManager
+from libraries.cat.keying_speed import KeyingSpeedManager
 from libraries.cat.mode import ModeManager
 from libraries.cat.ptt import PTTManager
 from libraries.cat.vfo import VFOManager
@@ -31,6 +33,8 @@ class CATEngine:
         self.mode = ModeManager()
         self.ptt = PTTManager()
         self.vfo = VFOManager()
+        self.cw_message = CWMessageManager()
+        self.keying_speed = KeyingSpeedManager()
 
         self.queue = CommandQueue()
 
@@ -76,6 +80,15 @@ class CATEngine:
 
     def set_ptt(self, state: bool) -> None:
         self.transact(self.ptt.build_set_command(state))
+
+    def send_cw_message(self, text: str) -> None:
+        self.transact(self.cw_message.build_send_command(text))
+
+    def stop_cw_message(self) -> None:
+        self.transact(self.cw_message.build_stop_command())
+
+    def set_keying_speed(self, wpm: int) -> None:
+        self.transact(self.keying_speed.build_set_command(wpm))
 
     def read_vfo(self):
         response = self.transact(self.vfo.build_read_command())

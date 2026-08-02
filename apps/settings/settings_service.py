@@ -42,6 +42,9 @@ _DEFAULT_OPEN_METEO_POLL_INTERVAL_MS = 10 * 60 * 1000  # libraries/weather/weath
 _DEFAULT_HAMQSL_POLL_INTERVAL_MS = 60 * 60 * 1000  # libraries/propagation/propagation_service.py
 _DEFAULT_DXCLUSTER_HOST = "dxfun.com"  # libraries/dxcluster/dxcluster_service.py
 _DEFAULT_DXCLUSTER_PORT = 8000  # libraries/dxcluster/dxcluster_service.py
+_DEFAULT_CW_WPM = 20  # libraries/cw/cw_service.py::CWService
+_DEFAULT_CW_SIDETONE_HZ = 700  # sidetone CW (étape 10, à venir) -- pas encore de service réel
+_CW_MACRO_COUNT = 12  # F1-F12, apps/cw/window.py (étape 2d)
 
 
 class SettingsService:
@@ -74,6 +77,26 @@ class SettingsService:
             "dxcluster_port": _DEFAULT_DXCLUSTER_PORT,
         }
 
+        # Chantier CW (libraries/cw/) : farnsworth_wpm=None -- pas de
+        # Farnsworth par defaut, comme CWService lui-meme. keyer_backend
+        # reserve pour un futur selecteur (un seul backend reel existe
+        # aujourd'hui, PTT) ; winkeyer_port reserve pour le futur backend
+        # Winkeyer ; sidetone_hz reserve pour la future integration du
+        # sidetone via AudioOutputService (etape 10) -- champs presents
+        # des maintenant pour ne jamais casser la compatibilite d'un
+        # config/settings.json deja existant quand ces fonctionnalites
+        # arriveront. macros : 12 emplacements F1-F12 (apps/cw/window.py,
+        # etape 2d), texte fixe uniquement -- aucune resolution de
+        # variable (%CALL%/%RST%/...), ExchangeService reste differe.
+        self.cw = {
+            "wpm": _DEFAULT_CW_WPM,
+            "farnsworth_wpm": None,
+            "keyer_backend": "ptt",
+            "winkeyer_port": "",
+            "sidetone_hz": _DEFAULT_CW_SIDETONE_HZ,
+            "macros": [""] * _CW_MACRO_COUNT,
+        }
+
         self.load()
 
     # ---------------------------------------------------------
@@ -104,6 +127,7 @@ class SettingsService:
 
         self._merge_section(data, "network")
         self._merge_section(data, "services")
+        self._merge_section(data, "cw")
 
     def _merge_section(self, data: dict, section_name: str) -> None:
         """Fusionne data[section_name] dans self.<section_name>, clé par clé."""
@@ -146,4 +170,5 @@ class SettingsService:
         return {
             "network": dict(self.network),
             "services": dict(self.services),
+            "cw": dict(self.cw),
         }

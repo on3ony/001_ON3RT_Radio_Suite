@@ -51,6 +51,7 @@ _MODULES = (
     ("file", "Contest Assistant", "Messages de concours bilingues, numérotation automatique.", "contest_assistant"),
     ("antenna", "Radio Control", "Pilotage CAT direct, VFO, filtres, préamplis.", "radio_control"),
     ("book", "Logbook", "Journal général des contacts et import ADIF.", "logbook"),
+    ("plug", "CW", "Envoi de messages Morse en direct, saisie libre.", "cw"),
     ("broadcast", "DX Cluster", "Flux de spots en direct, filtres par bande et mode.", "dxcluster"),
     ("sun", "Propagation", "Indices solaires, prévisions HF en temps réel.", "propagation"),
     ("signal", "Banque de fréquences", "Fréquences de référence, plan de bandes, favoris.", "frequency_bank"),
@@ -73,6 +74,7 @@ _IMPLEMENTED = {
     "settings",
     "bandmap",
     "contest_assistant",
+    "cw",
 }
 
 
@@ -342,5 +344,11 @@ class MainWindow(QMainWindow):
                 station_service=self.application.station_service,
                 transmission_service=self.application.transmission_service,
                 voice_service=self.application.voice_service,
+            )
+        if key == "cw":
+            from apps.cw.window import CWWindow
+            return CWWindow(
+                cw_service=self.application.cw_service,
+                settings_service=self.application.settings_service,
             )
         raise ValueError(f"Module inconnu : {key}")

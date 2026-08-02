@@ -21,6 +21,12 @@ def test_defaults_when_no_file_exists(tmp_path):
     assert service.services["hamqsl_poll_interval_ms"] == 60 * 60 * 1000
     assert service.services["dxcluster_host"] == "dxfun.com"
     assert service.services["dxcluster_port"] == 8000
+    assert service.cw["wpm"] == 20
+    assert service.cw["farnsworth_wpm"] is None
+    assert service.cw["keyer_backend"] == "ptt"
+    assert service.cw["winkeyer_port"] == ""
+    assert service.cw["sidetone_hz"] == 700
+    assert service.cw["macros"] == [""] * 12
 
 
 def test_save_then_reload_round_trips(tmp_path):
@@ -29,6 +35,9 @@ def test_save_then_reload_round_trips(tmp_path):
     service = SettingsService(config_path=path)
     service.network["hamqth_username"] = "ON3RT"
     service.services["dxcluster_port"] = 7300
+    service.cw["wpm"] = 25
+    service.cw["farnsworth_wpm"] = 15
+    service.cw["sidetone_hz"] = 600
     service.save()
 
     assert path.exists()
@@ -38,6 +47,39 @@ def test_save_then_reload_round_trips(tmp_path):
     assert reloaded.services["dxcluster_port"] == 7300
     # Une clé non modifiée garde sa valeur par défaut après un aller-retour.
     assert reloaded.services["dxcluster_host"] == "dxfun.com"
+    assert reloaded.cw["wpm"] == 25
+    assert reloaded.cw["farnsworth_wpm"] == 15
+    assert reloaded.cw["keyer_backend"] == "ptt"  # non modifie -> garde son defaut
+    assert reloaded.cw["sidetone_hz"] == 600
+
+
+def test_cw_farnsworth_none_round_trips_correctly(tmp_path):
+    """None (pas de Farnsworth) doit survivre un aller-retour JSON (null), pas devenir une autre valeur."""
+
+    path = tmp_path / "settings.json"
+
+    service = SettingsService(config_path=path)
+    service.cw["farnsworth_wpm"] = 12
+    service.save()
+    service.cw["farnsworth_wpm"] = None
+    service.save()
+
+    reloaded = SettingsService(config_path=path)
+    assert reloaded.cw["farnsworth_wpm"] is None
+
+
+def test_cw_macros_round_trip_correctly(tmp_path):
+    """Les 12 emplacements F1-F12 (texte fixe) doivent survivre un aller-retour JSON."""
+
+    path = tmp_path / "settings.json"
+
+    service = SettingsService(config_path=path)
+    macros = ["CQ CQ DE ON3RT"] + [""] * 10 + ["73"]
+    service.cw["macros"] = macros
+    service.save()
+
+    reloaded = SettingsService(config_path=path)
+    assert reloaded.cw["macros"] == macros
 
 
 def test_missing_key_in_older_file_keeps_default(tmp_path):
@@ -52,6 +94,9 @@ def test_missing_key_in_older_file_keeps_default(tmp_path):
     assert service.network["hamqth_username"] == "ON3RT"
     assert service.network["lotw_username"] == ""  # absent du fichier -> défaut
     assert service.services["dxcluster_host"] == "dxfun.com"  # section absente -> défauts
+    assert service.cw["wpm"] == 20  # section "cw" absente d'un fichier plus ancien -> défauts
+    assert service.cw["sidetone_hz"] == 700  # idem pour un champ ajouté après coup
+    assert service.cw["macros"] == [""] * 12  # idem pour "macros", ajouté à l'étape 2d
 
 
 def test_unknown_key_and_section_in_newer_file_are_ignored(tmp_path):

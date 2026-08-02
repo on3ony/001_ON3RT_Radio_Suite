@@ -41,6 +41,15 @@ class CATController:
     def set_ptt(self, state):
         self.engine.set_ptt(state)
 
+    def send_cw_message(self, text):
+        self.engine.send_cw_message(text)
+
+    def stop_cw_message(self):
+        self.engine.stop_cw_message()
+
+    def set_keying_speed(self, wpm):
+        self.engine.set_keying_speed(wpm)
+
     def read_vfo(self):
         return self.engine.read_vfo()
 

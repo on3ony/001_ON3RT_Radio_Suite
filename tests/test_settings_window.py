@@ -70,11 +70,11 @@ def test_window_builds_and_is_a_base_window(window):
     assert window.windowTitle() == "ON3RT Radio Suite - Settings"
 
 
-def test_window_has_exactly_four_tabs_in_order(window):
+def test_window_has_exactly_five_tabs_in_order(window):
     tabs = window.tabs
     assert isinstance(tabs, QTabWidget)
-    assert tabs.count() == 4
-    assert [tabs.tabText(i) for i in range(4)] == ["Station", "Radio", "Réseau", "Services"]
+    assert tabs.count() == 5
+    assert [tabs.tabText(i) for i in range(5)] == ["Station", "Radio", "Réseau", "Services", "CW"]
 
 
 def test_each_tab_holds_the_expected_panel_type(window):
@@ -82,17 +82,20 @@ def test_each_tab_holds_the_expected_panel_type(window):
     from apps.settings.panels.radio_panel import RadioPanel
     from apps.settings.panels.network_panel import NetworkPanel
     from apps.settings.panels.services_panel import ServicesPanel
+    from apps.settings.panels.cw_panel import CWPanel
 
     assert isinstance(window.tabs.widget(0), StationPanel)
     assert isinstance(window.tabs.widget(1), RadioPanel)
     assert isinstance(window.tabs.widget(2), NetworkPanel)
     assert isinstance(window.tabs.widget(3), ServicesPanel)
+    assert isinstance(window.tabs.widget(4), CWPanel)
 
 
 def test_each_panel_receives_the_service_injected_into_the_window(window, station_service, settings_service):
     assert window.station_panel.station_service is station_service
     assert window.network_panel.settings_service is settings_service
     assert window.services_panel.settings_service is settings_service
+    assert window.cw_panel.settings_service is settings_service
 
 
 def test_radio_service_defaults_to_none_and_is_passed_through(qapp, station_service, settings_service):

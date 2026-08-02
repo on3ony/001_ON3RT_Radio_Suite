@@ -16,6 +16,8 @@ Responsabilités :
 
 from PySide6.QtCore import QSettings
 
+from apps.cat_server.cw_civ_text_backend import CIVTextKeyerBackend
+from apps.cat_server.cw_ptt_backend import PTTKeyerBackend
 from apps.cat_server.ptt_guard import PTTGuard
 from apps.cat_server.radio_service import RadioService
 from apps.cat_server.transmission_service import TransmissionService
@@ -24,6 +26,9 @@ from apps.frequency_bank.frequency_service import FrequencyService
 from apps.settings.settings_service import SettingsService
 from core.module_manager import ModuleManager
 from libraries.audio.audio_output_service import AudioOutputService
+from libraries.cw.cw_service import CWService
+from libraries.cw.element_driver import ElementDriver
+from libraries.cw.text_driver import TextDriver
 from libraries.dxcluster.dxcluster_service import DXClusterService
 from libraries.propagation.propagation_service import PropagationService
 from libraries.station.station_service import StationService
@@ -122,6 +127,76 @@ class Application:
             audio_service=self.audio_output_service, ptt_guard=self.ptt_guard
         )
         self.voice_service = VoiceService()
+
+        # Service partagé CWService (chantier CW, libraries/cw/) : moteur
+        # figé et validé unitairement (109 tests) — cette instanciation
+        # n'y touche pas, elle réutilise seulement self.ptt_guard/
+        # self.radio_service ci-dessus, exactement comme
+        # transmission_service. Le choix du couple driver/backend
+        # concret reste ici, et ici seulement, comme documenté dans
+        # ARCHITECTURE.md ("core/application.py, seul endroit qui
+        # choisit") : settings_service.cw["keyer_backend"] sélectionne
+        # entre "civ_text" (CIVTextKeyerBackend, commande CI-V 0x17 —
+        # étape 3) et tout autre valeur, y compris le défaut "ptt"
+        # (PTTKeyerBackend inchangé, ElementDriver inchangé). Ni
+        # CWService ni TextDriver ni ElementDriver ne sont modifiés par
+        # ce choix : ils ignorent totalement quel backend leur est
+        # injecté. wpm/farnsworth_wpm proviennent de settings_service.cw,
+        # déjà persistés depuis l'onglet CW de Settings.
+        if self.settings_service.cw["keyer_backend"] == "civ_text":
+            cw_driver = TextDriver(CIVTextKeyerBackend(self.radio_service, self.ptt_guard))
+        else:
+            cw_driver = ElementDriver(PTTKeyerBackend(self.ptt_guard))
+
+        self.cw_service = CWService(
+            driver=cw_driver,
+            wpm=self.settings_service.cw["wpm"],
+            farnsworth_wpm=self.settings_service.cw["farnsworth_wpm"],
+        )
+
+        # Coordination RadioService <-> CWService (bug matériel réel,
+        # trouvé lors de la première validation IC-7300 le 2026-08-02) :
+        # radio_service.timer interroge la radio en continu (250 ms,
+        # trois échanges CI-V bloquants par cycle -- fréquence/mode/PTT)
+        # sur la même liaison série que celle utilisée par
+        # PTTKeyerBackend pendant le keying CW. Les deux flux étant
+        # synchrones sur le même thread Qt, ils entrent en concurrence
+        # pour le port série : la boucle d'événements se bloque par
+        # intermittence pendant une émission CW (barre de progression
+        # figée, bouton Stop qui semble ne rien faire), symptôme observé
+        # uniquement sur matériel réel (NullKeyerBackend ne touche à
+        # aucun port série -- jamais reproduit par les 109 tests du
+        # moteur). validate_cw_keying.py évitait déjà ce problème en
+        # appelant radio_service.timer.stop() juste après connect() ;
+        # ce réflexe n'avait pas été reporté ici, où radio_service doit
+        # au contraire continuer à alimenter le Dashboard en temps
+        # normal -- d'où cette pause strictement limitée à la durée
+        # d'une émission CW. Aucun fichier de libraries/cw/ ni
+        # apps/cat_server/cw_ptt_backend.py n'est concerné : pure
+        # coordination entre deux services déjà partagés, au même
+        # endroit que le reste du câblage CW (étape 2a).
+        self._cw_polling_paused = False
+        self.cw_service.cw_started.connect(self._on_cw_started)
+        self.cw_service.cw_finished.connect(self._on_cw_transmission_ended)
+        self.cw_service.cw_stopped.connect(self._on_cw_transmission_ended)
+        self.cw_service.cw_error.connect(self._on_cw_transmission_ended)
+
+    # ---------------------------------------------------------
+    # Coordination RadioService <-> CWService (voir commentaire ci-dessus)
+    # ---------------------------------------------------------
+
+    def _on_cw_started(self, request_id=None) -> None:
+        self._cw_polling_paused = True
+        self.radio_service.timer.stop()
+
+    def _on_cw_transmission_ended(self, *args) -> None:
+        if not self._cw_polling_paused:
+            return
+
+        self._cw_polling_paused = False
+
+        if self.radio_service.connected:
+            self.radio_service.timer.start()
 
     # ---------------------------------------------------------
     # Service CAT (arrière-plan)

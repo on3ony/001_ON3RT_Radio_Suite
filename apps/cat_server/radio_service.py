@@ -322,6 +322,76 @@ class RadioService(QObject):
             self.error.emit(str(exc))
             return False
 
+    def send_cw_message(self, text: str) -> bool:
+        """
+        Envoie un message CW réel (commande CI-V 0x17, jusqu'à 30
+        caractères -- voir libraries/cat/cw_message.py) au keyer
+        interne de la radio. Ne fait rien si la radio n'est pas
+        connectée. Comme set_ptt()/set_mode()/set_frequency(), aucune
+        mise à jour optimiste de status : ce module n'a aucun état à
+        refléter pour cette commande (pas de lecture possible pour
+        0x17).
+        """
+
+        if not self.controller.connected:
+            logger.event("send_cw_message() ignoré : controller.connected == False")
+            return False
+
+        logger.event(f"send_cw_message() appelé : {text!r}")
+
+        try:
+            self.controller.send_cw_message(text)
+            return True
+        except Exception as exc:
+            self.status.last_error = str(exc)
+            logger.exception(exc)
+            self.error.emit(str(exc))
+            return False
+
+    def stop_cw_message(self) -> bool:
+        """
+        Interrompt l'émission CW en cours (octet 0xFF -- voir
+        libraries/cat/cw_message.py). Ne fait rien si la radio n'est
+        pas connectée.
+        """
+
+        if not self.controller.connected:
+            logger.event("stop_cw_message() ignoré : controller.connected == False")
+            return False
+
+        logger.event("stop_cw_message() appelé")
+
+        try:
+            self.controller.stop_cw_message()
+            return True
+        except Exception as exc:
+            self.status.last_error = str(exc)
+            logger.exception(exc)
+            self.error.emit(str(exc))
+            return False
+
+    def set_keying_speed(self, wpm: int) -> bool:
+        """
+        Règle la vitesse du keyer interne (commande CI-V 14 0C, 6-48
+        WPM -- voir libraries/cat/keying_speed.py). Ne fait rien si la
+        radio n'est pas connectée.
+        """
+
+        if not self.controller.connected:
+            logger.event("set_keying_speed() ignoré : controller.connected == False")
+            return False
+
+        logger.event(f"set_keying_speed() appelé : {wpm} WPM")
+
+        try:
+            self.controller.set_keying_speed(wpm)
+            return True
+        except Exception as exc:
+            self.status.last_error = str(exc)
+            logger.exception(exc)
+            self.error.emit(str(exc))
+            return False
+
     def info(self):
         return {
             "timestamp": time.time(),

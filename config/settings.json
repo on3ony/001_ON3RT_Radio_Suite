@@ -14,5 +14,26 @@
     "hamqsl_poll_interval_ms": 3600000,
     "dxcluster_host": "dxfun.com",
     "dxcluster_port": 8000
+  },
+  "cw": {
+    "wpm": 20,
+    "farnsworth_wpm": null,
+    "keyer_backend": "civ_text",
+    "winkeyer_port": "",
+    "sidetone_hz": 700,
+    "macros": [
+      "CQ CQ CQ DE ON3RT K",
+      "PARIS",
+      "TEST TEST TEST",
+      "VVV VVV VVV",
+      "ON3RT",
+      "CQ TEST DE ON3RT K",
+      "73 ES GL",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ]
   }
 }
