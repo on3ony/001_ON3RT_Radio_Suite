@@ -45,6 +45,11 @@ _DEFAULT_DXCLUSTER_PORT = 8000  # libraries/dxcluster/dxcluster_service.py
 _DEFAULT_CW_WPM = 20  # libraries/cw/cw_service.py::CWService
 _DEFAULT_CW_SIDETONE_HZ = 700  # sidetone CW (étape 10, à venir) -- pas encore de service réel
 _CW_MACRO_COUNT = 12  # F1-F12, apps/cw/window.py (étape 2d)
+_DEFAULT_GRAYLINE_LINE_COLOR_RGB = [255, 204, 51]  # apps/dashboard/map_layers/grayline_layer.py::GraylineStyle
+_DEFAULT_GRAYLINE_LINE_OPACITY = 220  # idem
+_DEFAULT_GRAYLINE_LINE_WIDTH_PX = 1.6  # idem
+_DEFAULT_GRAYLINE_NIGHT_FILL_COLOR_RGB = [5, 10, 25]  # idem
+_DEFAULT_GRAYLINE_NIGHT_FILL_OPACITY = 110  # idem
 
 
 class SettingsService:
@@ -97,6 +102,27 @@ class SettingsService:
             "macros": [""] * _CW_MACRO_COUNT,
         }
 
+        # Styles visuels des couches de la Carte (apps/dashboard/
+        # map_layers/), regroupés sous "map" plutôt qu'une section par
+        # couche pour ne pas multiplier les sections top-level.
+        # "grayline" recopie les 5 valeurs par défaut de GraylineStyle
+        # (apps/dashboard/map_layers/grayline_layer.py) sous forme de
+        # types JSON primitifs -- jamais importées (SettingsService ne
+        # dépend d'aucun autre module de la suite, voir docstring en
+        # tête de fichier). Même principe que le reste de ce fichier :
+        # section déclarée avant tout câblage réel, non lue nulle part
+        # à ce stade, aucun effet tant qu'un appelant ne la consultera
+        # pas explicitement.
+        self.map = {
+            "grayline": {
+                "line_color_rgb": list(_DEFAULT_GRAYLINE_LINE_COLOR_RGB),
+                "line_opacity": _DEFAULT_GRAYLINE_LINE_OPACITY,
+                "line_width_px": _DEFAULT_GRAYLINE_LINE_WIDTH_PX,
+                "night_fill_color_rgb": list(_DEFAULT_GRAYLINE_NIGHT_FILL_COLOR_RGB),
+                "night_fill_opacity": _DEFAULT_GRAYLINE_NIGHT_FILL_OPACITY,
+            },
+        }
+
         self.load()
 
     # ---------------------------------------------------------
@@ -128,6 +154,7 @@ class SettingsService:
         self._merge_section(data, "network")
         self._merge_section(data, "services")
         self._merge_section(data, "cw")
+        self._merge_section(data, "map")
 
     def _merge_section(self, data: dict, section_name: str) -> None:
         """Fusionne data[section_name] dans self.<section_name>, clé par clé."""
@@ -171,4 +198,5 @@ class SettingsService:
             "network": dict(self.network),
             "services": dict(self.services),
             "cw": dict(self.cw),
+            "map": dict(self.map),
         }

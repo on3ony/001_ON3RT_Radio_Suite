@@ -35,5 +35,14 @@
       "",
       ""
     ]
+  },
+  "map": {
+    "grayline": {
+      "line_color_rgb": [255, 204, 51],
+      "line_opacity": 220,
+      "line_width_px": 1.6,
+      "night_fill_color_rgb": [5, 10, 25],
+      "night_fill_opacity": 110
+    }
   }
 }
