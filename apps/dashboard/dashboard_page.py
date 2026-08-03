@@ -16,6 +16,17 @@ Description :
     Repris de 001_ON3RT_live/dashboard.py (grille + logique),
     sans l'en-tête ni l'horloge : ceux-ci sont désormais fournis
     par le SuiteHeader commun à toute la suite.
+
+    Ne construit plus son propre LiveService : le reçoit en
+    paramètre, construit une seule fois par Application
+    (core/application.py) à partir des mêmes services partagés
+    (dxcluster_service/weather_service/propagation_service) —
+    afin qu'un futur service de diffusion réseau (LiveServer)
+    puisse s'abonner à exactement le même état que celui affiché
+    ici, sans sondages dupliqués. Si aucun n'est fourni (usage
+    isolé, tests), une instance par défaut est construite (mêmes
+    sources qu'avant : CAT + Logbook uniquement, sans DX
+    Cluster/météo/propagation).
 =========================================================
 """
 
@@ -32,14 +43,15 @@ from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
 
 from apps.dashboard.data_sources import LocalFileLiveDataSource, LogbookLiveDataSource
-from apps.dashboard.data_sources.dxcluster_source import DXClusterLiveDataSource
-from apps.dashboard.data_sources.propagation_source import PropagationLiveDataSource
-from apps.dashboard.data_sources.weather_source import WeatherLiveDataSource
 from apps.dashboard.live_service import LiveService
+from apps.dashboard.map_layers.grayline_layer import GraylineLayer
+from apps.dashboard.map_layers.station_layer import StationLayer
+from apps.dashboard.map_layers.world_outline_layer import WorldOutlineLayer
 from apps.dashboard.panels.radio_panel import RadioPanel
 from apps.dashboard.panels.band_activity_panel import BandActivityPanel
 from apps.dashboard.panels.dxcluster_panel import DXClusterPanel
 from apps.dashboard.panels.logbook_panel import LogbookPanel
+from apps.dashboard.panels.map_panel import MapPanel
 from apps.dashboard.panels.propagation_panel import PropagationPanel
 from apps.dashboard.panels.weather_panel import WeatherPanel
 
@@ -66,26 +78,36 @@ _PAGE_STYLE = """
 class DashboardPage(QWidget):
     """Page Dashboard : état de la station en temps réel."""
 
-    def __init__(self, dxcluster_service=None, weather_service=None, propagation_service=None, parent=None):
+    def __init__(self, live_service=None, station_service=None, parent=None):
         super().__init__(parent)
 
-        sources = [LocalFileLiveDataSource(), LogbookLiveDataSource()]
+        # station_service : reçu depuis Application (comme live_service
+        # ci-dessous), pour le panneau CARTE (MapPanel) -- la position
+        # de la station est une donnée statique de configuration,
+        # jamais une clé de l'état partagé LiveService (voir docstring
+        # de apps/dashboard/map_layers/station_layer.py). Si absent
+        # (usage isolé, tests), une instance par défaut est construite
+        # (station non configurée -- MapPanel n'affiche alors aucun
+        # marqueur de station, voir StationLayer).
+        if station_service is None:
+            from libraries.station.station_service import StationService
+            station_service = StationService()
 
-        # DXClusterService / WeatherService / PropagationService
-        # (services Suite partagés) : optionnels, pour que DashboardPage
-        # reste utilisable sans eux (tests, lancement isolé) —
-        # exactement le même principe que radio_service/station_service
-        # pour les autres modules de la suite.
-        if dxcluster_service is not None:
-            sources.append(DXClusterLiveDataSource(dxcluster_service))
+        self.station_service = station_service
 
-        if weather_service is not None:
-            sources.append(WeatherLiveDataSource(weather_service))
+        # live_service : reçu depuis Application (voir docstring plus
+        # haut), pour partager exactement le même état que celui d'un
+        # éventuel futur LiveServer. Si absent (usage isolé, tests), on
+        # retombe sur une instance par défaut équivalente au
+        # comportement historique de cette page seule : CAT + Logbook,
+        # sans DX Cluster/météo/propagation.
+        if live_service is None:
+            live_service = LiveService(
+                source=[LocalFileLiveDataSource(), LogbookLiveDataSource()],
+                parent=self,
+            )
 
-        if propagation_service is not None:
-            sources.append(PropagationLiveDataSource(propagation_service))
-
-        self.live_service = LiveService(source=sources, parent=self)
+        self.live_service = live_service
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -94,8 +116,21 @@ class DashboardPage(QWidget):
         grid = QGridLayout()
         grid.setSpacing(15)
 
+        # Ordre explicite des couches de la Carte (fixe l'empilement
+        # visuel, voir apps/dashboard/panels/map_panel.py) : fond
+        # (océan/continents), puis grayline par-dessus, puis le
+        # marqueur de la station tout en haut, jamais masqué par la
+        # ligne du terminateur.
+        map_layers = [
+            WorldOutlineLayer(),
+            GraylineLayer(),
+            StationLayer(self.station_service),
+        ]
+
         grid.addWidget(RadioPanel(self.live_service), 0, 0)
-        grid.addWidget(self._placeholder("🌍 CARTE"), 0, 1)
+        grid.addWidget(
+            MapPanel(self.station_service, live_service=self.live_service, layers=map_layers), 0, 1
+        )
         grid.addWidget(DXClusterPanel(self.live_service), 0, 2)
 
         grid.addWidget(PropagationPanel(self.live_service), 1, 0)
