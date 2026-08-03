@@ -352,3 +352,24 @@ class MainWindow(QMainWindow):
                 settings_service=self.application.settings_service,
             )
         raise ValueError(f"Module inconnu : {key}")
+
+    # ------------------------------------------------------------------
+    # Cycle de vie
+    # ------------------------------------------------------------------
+
+    def closeEvent(self, event) -> None:
+        """
+        Ferme proprement la connexion DX Cluster partagée à la fermeture
+        de la fenêtre principale -- jusqu'ici jamais fait nulle part
+        (Application.close_all() ne ferme que les fenêtres de modules,
+        pas les services partagés). DXClusterService.disconnect() notifie
+        explicitement le nœud DXSpider (fermeture TCP propre) au lieu de
+        laisser le processus se terminer sans logout, ce qui laisse une
+        session fantôme active côté serveur -- exactement la cause
+        identifiée lors de l'audit du 2026-08-03 ("Reconnected as <call>
+        ... this instance is disconnected" sur toute reconnexion
+        ultérieure sous le même indicatif).
+        """
+
+        self.application.dxcluster_service.disconnect()
+        super().closeEvent(event)
