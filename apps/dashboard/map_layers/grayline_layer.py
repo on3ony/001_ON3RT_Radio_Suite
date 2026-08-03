@@ -65,13 +65,15 @@ from libraries.geo.solar import terminator_points
 
 
 @dataclass(frozen=True, slots=True)
-class _GraylineStyle:
+class GraylineStyle:
     """
-    Regroupe tous les paramètres visuels de GraylineLayer -- structure
-    interne (pas encore de préférence utilisateur ni de paramètre
-    persistant à cette étape), qui prépare une future configurabilité
-    (GraylineLayer(style=...), voir _DEFAULT_STYLE plus bas) sans
-    l'exposer pour l'instant.
+    Regroupe tous les paramètres visuels de GraylineLayer -- injectable
+    au constructeur (GraylineLayer(style=...), voir _DEFAULT_STYLE plus
+    bas pour la valeur par défaut) pour permettre une personnalisation
+    programmatique (tests, futurs styles alternatifs). Toujours aucune
+    préférence utilisateur ni paramètre persisté à cette étape : aucune
+    lecture de configuration, aucune UI de réglage -- juste le point
+    d'entrée que cette future étape utilisera.
 
     Couleur et opacité restent deux champs séparés (plutôt qu'une seule
     QColor opaque) pour rester ajustables indépendamment ; line_color/
@@ -109,7 +111,7 @@ class _GraylineStyle:
         return QColor(*self.night_fill_color_rgb, self.night_fill_opacity)
 
 
-_DEFAULT_STYLE = _GraylineStyle()
+_DEFAULT_STYLE = GraylineStyle()
 
 # Voir docstring du module (paragraphe "Rafraîchissement").
 _RECOMPUTE_INTERVAL_SECONDS = 60.0
@@ -118,11 +120,19 @@ _RECOMPUTE_INTERVAL_SECONDS = 60.0
 class GraylineLayer:
     """Voir docstring du module. Aucune connaissance de LiveService/StationService/DX Cluster."""
 
-    def __init__(self, now_func: Callable[[], datetime] | None = None):
+    def __init__(
+        self,
+        style: GraylineStyle | None = None,
+        now_func: Callable[[], datetime] | None = None,
+    ):
+        # style injectable -- par défaut _DEFAULT_STYLE (voir docstring
+        # de GraylineStyle), rendu strictement identique tant qu'aucun
+        # style personnalisé n'est fourni.
+        self._style = style or _DEFAULT_STYLE
+
         # now_func injectable (tests) -- par défaut l'heure UTC réelle,
         # jamais un datetime naïf (voir libraries/geo/solar.py).
         self._now_func = now_func or (lambda: datetime.now(timezone.utc))
-        self._style = _DEFAULT_STYLE
 
         self._cached_moment: datetime | None = None
         self._cached_points: list[tuple[float, float]] | None = None
