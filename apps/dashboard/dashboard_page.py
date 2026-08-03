@@ -44,7 +44,7 @@ from PySide6.QtCore import Qt
 
 from apps.dashboard.data_sources import LocalFileLiveDataSource, LogbookLiveDataSource
 from apps.dashboard.live_service import LiveService
-from apps.dashboard.map_layers.grayline_layer import GraylineLayer
+from apps.dashboard.map_layers.grayline_layer import GraylineLayer, GraylineStyle
 from apps.dashboard.map_layers.station_layer import StationLayer
 from apps.dashboard.map_layers.world_outline_layer import WorldOutlineLayer
 from apps.dashboard.panels.radio_panel import RadioPanel
@@ -78,7 +78,7 @@ _PAGE_STYLE = """
 class DashboardPage(QWidget):
     """Page Dashboard : état de la station en temps réel."""
 
-    def __init__(self, live_service=None, station_service=None, parent=None):
+    def __init__(self, live_service=None, station_service=None, settings_service=None, parent=None):
         super().__init__(parent)
 
         # station_service : reçu depuis Application (comme live_service
@@ -109,12 +109,43 @@ class DashboardPage(QWidget):
 
         self.live_service = live_service
 
+        # settings_service : reçu depuis Application (comme les deux
+        # services ci-dessus), pour le style de GraylineLayer
+        # (section map.grayline, voir apps/settings/settings_service.py)
+        # -- seule cette section est lue ici, aucune autre. Si absent
+        # (usage isolé, tests, ON3RT Live Viewer -- voir apps/live_viewer/
+        # window.py), une instance par défaut est construite, mêmes
+        # valeurs par défaut que GraylineStyle() tant que
+        # config/settings.json n'a jamais été modifié depuis l'écran
+        # Settings.
+        if settings_service is None:
+            from apps.settings.settings_service import SettingsService
+            settings_service = SettingsService()
+
+        self.settings_service = settings_service
+
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
         grid = QGridLayout()
         grid.setSpacing(15)
+
+        # Style de GraylineLayer construit depuis settings_service.map
+        # ["grayline"] (section ajoutée en amont de tout câblage, voir
+        # apps/settings/settings_service.py) -- tuples reconvertis
+        # depuis les listes JSON (dataclass GraylineStyle, jamais
+        # importée par SettingsService). Tant que config/settings.json
+        # garde ses valeurs par défaut, ce style est strictement
+        # identique à GraylineStyle().
+        grayline_settings = self.settings_service.map["grayline"]
+        grayline_style = GraylineStyle(
+            line_color_rgb=tuple(grayline_settings["line_color_rgb"]),
+            line_opacity=grayline_settings["line_opacity"],
+            line_width_px=grayline_settings["line_width_px"],
+            night_fill_color_rgb=tuple(grayline_settings["night_fill_color_rgb"]),
+            night_fill_opacity=grayline_settings["night_fill_opacity"],
+        )
 
         # Ordre explicite des couches de la Carte (fixe l'empilement
         # visuel, voir apps/dashboard/panels/map_panel.py) : fond
@@ -123,7 +154,7 @@ class DashboardPage(QWidget):
         # ligne du terminateur.
         map_layers = [
             WorldOutlineLayer(),
-            GraylineLayer(),
+            GraylineLayer(style=grayline_style),
             StationLayer(self.station_service),
         ]
 
