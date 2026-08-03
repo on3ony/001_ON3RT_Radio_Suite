@@ -52,6 +52,7 @@ Description :
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable
 
@@ -62,33 +63,53 @@ from apps.dashboard.map_layers.base import disk_geometry, unit_to_pixel
 from libraries.geo.grayline import DaylightZone, daylight_zone
 from libraries.geo.solar import terminator_points
 
-# --- Style visuel de la ligne du terminateur -----------------------
-# Ambré (famille des accents chauds déjà utilisés ailleurs dans le
-# Dashboard, ex. apps/dashboard/widgets/smeter_bar.py #ffe066/#ffb454)
-# -- volontairement distinct du bleu de WorldOutlineLayer (#5a8fd6) et
-# du cyan de StationLayer (#00dfff), pour que la ligne du terminateur
-# se distingue clairement du fond de carte comme du marqueur de
-# station, tout en restant dans la palette sombre de la Suite. Trois
-# paramètres séparés (plutôt qu'une seule QColor opaque) pour que
-# chacun reste ajustable indépendamment lors d'une future évolution du
-# style (ex. remplissage jour/nuit, thème clair...).
-_LINE_COLOR_RGB = (255, 204, 51)
-_LINE_OPACITY = 220  # 0-255 -- légère transparence, jamais un trait plein dur
-_LINE_WIDTH_PX = 1.6
 
-_LINE_COLOR = QColor(*_LINE_COLOR_RGB, _LINE_OPACITY)
+@dataclass(frozen=True, slots=True)
+class _GraylineStyle:
+    """
+    Regroupe tous les paramètres visuels de GraylineLayer -- structure
+    interne (pas encore de préférence utilisateur ni de paramètre
+    persistant à cette étape), qui prépare une future configurabilité
+    (GraylineLayer(style=...), voir _DEFAULT_STYLE plus bas) sans
+    l'exposer pour l'instant.
 
-# --- Style visuel du remplissage de l'hémisphère nocturne -----------
-# Voile sombre semi-transparent, dans la même famille que l'océan de
-# WorldOutlineLayer (#0a1122) -- suffisamment opaque pour assombrir
-# nettement la nuit, mais assez transparent pour laisser deviner le
-# fond de carte en dessous (l'objectif est d'assombrir, pas de
-# masquer). Deux constantes séparées (couleur + opacité), même
-# convention que le style de la ligne ci-dessus.
-_NIGHT_FILL_COLOR_RGB = (5, 10, 25)
-_NIGHT_FILL_OPACITY = 110  # 0-255
+    Couleur et opacité restent deux champs séparés (plutôt qu'une seule
+    QColor opaque) pour rester ajustables indépendamment ; line_color/
+    night_fill_color reconstruisent la QColor correspondante à la
+    demande, jamais mise en cache ici (construction QColor négligeable).
 
-_NIGHT_FILL_COLOR = QColor(*_NIGHT_FILL_COLOR_RGB, _NIGHT_FILL_OPACITY)
+    Ligne du terminateur : ambré (famille des accents chauds déjà
+    utilisés ailleurs dans le Dashboard, ex. apps/dashboard/widgets/
+    smeter_bar.py #ffe066/#ffb454) -- volontairement distinct du bleu
+    de WorldOutlineLayer (#5a8fd6) et du cyan de StationLayer
+    (#00dfff), pour se distinguer clairement du fond de carte comme du
+    marqueur de station, tout en restant dans la palette sombre de la
+    Suite.
+
+    Remplissage nocturne : voile sombre semi-transparent, dans la même
+    famille que l'océan de WorldOutlineLayer (#0a1122) -- suffisamment
+    opaque pour assombrir nettement la nuit, mais assez transparent
+    pour laisser deviner le fond de carte en dessous (l'objectif est
+    d'assombrir, pas de masquer).
+    """
+
+    line_color_rgb: tuple[int, int, int] = (255, 204, 51)
+    line_opacity: int = 220  # 0-255 -- légère transparence, jamais un trait plein dur
+    line_width_px: float = 1.6
+
+    night_fill_color_rgb: tuple[int, int, int] = (5, 10, 25)
+    night_fill_opacity: int = 110  # 0-255
+
+    @property
+    def line_color(self) -> QColor:
+        return QColor(*self.line_color_rgb, self.line_opacity)
+
+    @property
+    def night_fill_color(self) -> QColor:
+        return QColor(*self.night_fill_color_rgb, self.night_fill_opacity)
+
+
+_DEFAULT_STYLE = _GraylineStyle()
 
 # Voir docstring du module (paragraphe "Rafraîchissement").
 _RECOMPUTE_INTERVAL_SECONDS = 60.0
@@ -101,6 +122,7 @@ class GraylineLayer:
         # now_func injectable (tests) -- par défaut l'heure UTC réelle,
         # jamais un datetime naïf (voir libraries/geo/solar.py).
         self._now_func = now_func or (lambda: datetime.now(timezone.utc))
+        self._style = _DEFAULT_STYLE
 
         self._cached_moment: datetime | None = None
         self._cached_points: list[tuple[float, float]] | None = None
@@ -134,7 +156,7 @@ class GraylineLayer:
             path.addPolygon(polygon)
 
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(_NIGHT_FILL_COLOR)
+        painter.setBrush(self._style.night_fill_color)
         painter.drawPath(path)
 
     def paint(self, painter, projection, rect, state) -> None:
@@ -149,6 +171,6 @@ class GraylineLayer:
 
         self._paint_night_fill(painter, polygon, center, radius, projection)
 
-        painter.setPen(QPen(_LINE_COLOR, _LINE_WIDTH_PX))
+        painter.setPen(QPen(self._style.line_color, self._style.line_width_px))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPolygon(polygon)
