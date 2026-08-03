@@ -54,10 +54,21 @@ from PySide6.QtGui import QColor, QPen, QPolygonF
 from apps.dashboard.map_layers.base import disk_geometry, unit_to_pixel
 from libraries.geo.solar import terminator_points
 
-# Ambré -- évoque la limite jour/nuit, distinct du bleu de
-# WorldOutlineLayer et du cyan de StationLayer.
-_LINE_COLOR = QColor(255, 204, 51, 220)
+# --- Style visuel de la ligne du terminateur -----------------------
+# Ambré (famille des accents chauds déjà utilisés ailleurs dans le
+# Dashboard, ex. apps/dashboard/widgets/smeter_bar.py #ffe066/#ffb454)
+# -- volontairement distinct du bleu de WorldOutlineLayer (#5a8fd6) et
+# du cyan de StationLayer (#00dfff), pour que la ligne du terminateur
+# se distingue clairement du fond de carte comme du marqueur de
+# station, tout en restant dans la palette sombre de la Suite. Trois
+# paramètres séparés (plutôt qu'une seule QColor opaque) pour que
+# chacun reste ajustable indépendamment lors d'une future évolution du
+# style (ex. remplissage jour/nuit, thème clair...).
+_LINE_COLOR_RGB = (255, 204, 51)
+_LINE_OPACITY = 220  # 0-255 -- légère transparence, jamais un trait plein dur
 _LINE_WIDTH_PX = 1.6
+
+_LINE_COLOR = QColor(*_LINE_COLOR_RGB, _LINE_OPACITY)
 
 # Voir docstring du module (paragraphe "Rafraîchissement").
 _RECOMPUTE_INTERVAL_SECONDS = 60.0
