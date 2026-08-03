@@ -94,6 +94,23 @@ _SPOT_RE = re.compile(
     r"(?P<time>\d{4})Z\s*$"
 )
 
+# Lignes de spot réellement observées (audit du 2026-08-03, nœud
+# EA4RCH-5) : chaque annonce se termine par deux caractères BEL
+# (\x07\x07, bip terminal), jamais anticipés par _SPOT_RE -- \s*$ n'
+# autorise que des espaces/tabulations en fin de ligne, pas des
+# caractères de contrôle. Retirés ici, en amont de tout traitement
+# (parsing, stockage), plutôt que d'élargir _SPOT_RE lui-même :
+# \x09 (tabulation) et tout caractère imprimable (y compris accentué,
+# cf. commentaires POTA/WWFF) restent intacts -- seuls les octets de
+# contrôle ASCII sans valeur informative pour un spot sont retirés.
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def _strip_control_characters(line: str) -> str:
+    """Retire les caractères de contrôle ASCII parasites (BEL, etc.) d'une ligne déjà décodée, sans toucher au contenu utile."""
+
+    return _CONTROL_CHARS_RE.sub("", line)
+
 
 class DXClusterService(QObject):
     """
@@ -219,7 +236,7 @@ class DXClusterService(QObject):
             self._handle_line(line)
 
     def _handle_line(self, raw_bytes):
-        line = raw_bytes.decode("utf-8", errors="replace").rstrip("\r")
+        line = _strip_control_characters(raw_bytes.decode("utf-8", errors="replace").rstrip("\r"))
 
         spot = self._parse_spot(line)
         if spot is not None:
