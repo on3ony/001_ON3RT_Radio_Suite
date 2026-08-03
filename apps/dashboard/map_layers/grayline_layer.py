@@ -13,15 +13,12 @@ Description :
     utilitaires de conversion disque unité -> écran).
 
     AUCUN calcul astronomique ici : les points du terminateur viennent
-    exclusivement de libraries/geo/solar.py (terminator_points()) --
-    cette couche ne fait que projeter et dessiner, exactement comme
-    WorldOutlineLayer ne fait que projeter et dessiner les contours des
-    continents, jamais de la géométrie sphérique elle-même. La
-    classification jour/nuit/terminateur d'un point (libraries/geo/
-    grayline.py, daylight_zone()/DaylightZone) n'est PAS encore
-    utilisée ici : elle sera le point d'entrée naturel d'un futur
-    remplissage jour/nuit (voir plus bas), volontairement pas encore
-    implémenté à cette étape.
+    exclusivement de libraries/geo/solar.py (terminator_points()), et
+    la classification jour/nuit exclusivement de libraries/geo/
+    grayline.py (daylight_zone()/DaylightZone) -- cette couche ne fait
+    que projeter et dessiner, exactement comme WorldOutlineLayer ne
+    fait que projeter et dessiner les contours des continents, jamais
+    de la géométrie sphérique elle-même.
 
     Rafraîchissement (recalcul sans travail inutile) : le terminateur
     ne se déplace que d'environ 0.25°/minute (360° en 24h) -- un
@@ -31,15 +28,25 @@ Description :
     apps/dashboard/panels/map_panel.py, sans rapport avec l'heure).
     Le terminateur est donc mis en cache et recalculé au plus une fois
     par _RECOMPUTE_INTERVAL_SECONDS, jamais à chaque appel de paint().
+    La classification jour/nuit du centre de la carte (voir plus bas)
+    reste en revanche recalculée à chaque paint() : un unique appel à
+    daylight_zone() est négligeable (quelques sin/cos), et elle dépend
+    du centre de projection courant -- jamais mise en cache pour rester
+    correcte même si ce centre venait à changer entre deux appels.
 
-    Support futur du remplissage jour/nuit (pas encore implémenté,
-    volontairement -- voir contrainte du chantier) : le tracé est déjà
-    dessiné comme un polygone fermé (painter.drawPolygon(), avec une
-    brosse explicitement NoBrush) plutôt qu'une simple polyligne
-    ouverte -- exactement la structure dont une future étape aurait
-    besoin pour remplir l'hémisphère nocturne (il suffira alors de
-    changer la brosse et de s'appuyer sur grayline.daylight_zone()),
-    sans qu'aucun code de remplissage n'existe pour l'instant.
+    Remplissage jour/nuit : le tracé du terminateur (terminator_points())
+    est un grand cercle fermé -- projeté, il délimite donc exactement
+    deux régions du disque cartographique, l'une couvrant l'hémisphère
+    diurne, l'autre l'hémisphère nocturne (théorème de la courbe de
+    Jordan ; vrai pour toute projection continue, y compris l'azimutale
+    équidistante utilisée ici). Reste à savoir laquelle des deux est la
+    nuit : le centre de la carte (projection.center_latitude/
+    center_longitude) est classifié une fois via grayline.daylight_zone()
+    -- s'il est nocturne, on remplit l'intérieur du polygone du
+    terminateur ; sinon (jour ou bande TERMINATOR, traitée comme le
+    jour), on remplit son complément dans le disque (QPainterPath en
+    règle pair-impair, ellipse du disque moins le polygone). Voir
+    _paint_night_fill().
 =========================================================
 """
 
@@ -49,9 +56,10 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPen, QPolygonF
+from PySide6.QtGui import QColor, QPainterPath, QPen, QPolygonF
 
 from apps.dashboard.map_layers.base import disk_geometry, unit_to_pixel
+from libraries.geo.grayline import DaylightZone, daylight_zone
 from libraries.geo.solar import terminator_points
 
 # --- Style visuel de la ligne du terminateur -----------------------
@@ -69,6 +77,18 @@ _LINE_OPACITY = 220  # 0-255 -- légère transparence, jamais un trait plein dur
 _LINE_WIDTH_PX = 1.6
 
 _LINE_COLOR = QColor(*_LINE_COLOR_RGB, _LINE_OPACITY)
+
+# --- Style visuel du remplissage de l'hémisphère nocturne -----------
+# Voile sombre semi-transparent, dans la même famille que l'océan de
+# WorldOutlineLayer (#0a1122) -- suffisamment opaque pour assombrir
+# nettement la nuit, mais assez transparent pour laisser deviner le
+# fond de carte en dessous (l'objectif est d'assombrir, pas de
+# masquer). Deux constantes séparées (couleur + opacité), même
+# convention que le style de la ligne ci-dessus.
+_NIGHT_FILL_COLOR_RGB = (5, 10, 25)
+_NIGHT_FILL_OPACITY = 110  # 0-255
+
+_NIGHT_FILL_COLOR = QColor(*_NIGHT_FILL_COLOR_RGB, _NIGHT_FILL_OPACITY)
 
 # Voir docstring du module (paragraphe "Rafraîchissement").
 _RECOMPUTE_INTERVAL_SECONDS = 60.0
@@ -100,6 +120,23 @@ class GraylineLayer:
         self._cached_moment = now
         self._cached_points = terminator_points(now)
 
+    def _paint_night_fill(self, painter, polygon: QPolygonF, center, radius, projection) -> None:
+        """Remplit l'hémisphère nocturne -- voir docstring du module (paragraphe "Remplissage jour/nuit")."""
+
+        center_zone = daylight_zone(self._cached_moment, projection.center_latitude, projection.center_longitude)
+
+        path = QPainterPath()
+        if center_zone == DaylightZone.NIGHT:
+            path.addPolygon(polygon)
+        else:
+            path.setFillRule(Qt.FillRule.OddEvenFill)
+            path.addEllipse(center, radius, radius)
+            path.addPolygon(polygon)
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(_NIGHT_FILL_COLOR)
+        painter.drawPath(path)
+
     def paint(self, painter, projection, rect, state) -> None:
         self._refresh_terminator_if_stale()
 
@@ -110,6 +147,8 @@ class GraylineLayer:
             x, y = projection.project(latitude, longitude)
             polygon.append(unit_to_pixel(x, y, center, radius))
 
+        self._paint_night_fill(painter, polygon, center, radius, projection)
+
         painter.setPen(QPen(_LINE_COLOR, _LINE_WIDTH_PX))
-        painter.setBrush(Qt.BrushStyle.NoBrush)  # remplissage jour/nuit : brique future, voir docstring du module
+        painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPolygon(polygon)
