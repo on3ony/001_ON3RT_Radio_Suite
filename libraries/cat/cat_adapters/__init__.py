@@ -14,14 +14,17 @@ Description :
 
         from libraries.cat.cat_adapters import CatAdapter
 
-    Aucun adaptateur concret n'existe encore -- RigctldAdapter (premier
-    adaptateur concret, protocole rigctld/Hamlib) est la prochaine
-    étape de ce chantier, pas encore construite.
+    RigctldAdapter (protocole rigctld/Hamlib) est le premier adaptateur
+    concret -- encore en mode diagnostic uniquement à ce stade (voir sa
+    docstring) : journalise le trafic réel de WSJT-X sans encore
+    implémenter la moindre commande du protocole.
 =========================================================
 """
 
 from .base import CatAdapter
+from .rigctld_adapter import RigctldAdapter
 
 __all__ = [
     "CatAdapter",
+    "RigctldAdapter",
 ]
