@@ -55,6 +55,12 @@
       "label": "Répétition",
       "text_fr": "Répétez svp",
       "text_en": "Please repeat"
+    },
+    {
+      "id": 11,
+      "label": "cq dx",
+      "text_fr": "CQ CQ DX de %MYCALL%",
+      "text_en": "CQ CQ DX from %MYCALL%"
     }
   ],
   "serial": 2,
