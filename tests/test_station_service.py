@@ -114,3 +114,60 @@ def test_other_fields_are_unaffected(tmp_path):
     assert reloaded.antennas == ["Dipole 80m"]
     assert reloaded.interfaces == {"cat": "COM3"}
     assert reloaded.timezone == "Europe/Brussels"
+
+
+# ------------------------------------------------------------------
+# license_class -- chantier "Tuile Activité par bande" (2026-08-05)
+# ------------------------------------------------------------------
+
+def test_license_class_defaults_to_empty_string(tmp_path):
+    service = StationService(config_path=tmp_path / "station.json")
+
+    assert service.license_class == ""
+
+
+def test_loading_an_old_format_file_without_license_class_does_not_crash(tmp_path):
+    """
+    Un station.json écrit avant l'ajout de ce champ (y compris ceux
+    déjà mis à jour pour operator_name mais pas encore license_class)
+    ne doit ni planter, ni affecter les autres champs.
+    """
+    path = tmp_path / "station.json"
+    path.write_text(
+        json.dumps(
+            {
+                "callsign": "ON3RT",
+                "operator_name": "Jean Dupont",
+                "locator": "JO20EU",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    service = StationService(config_path=path)
+
+    assert service.license_class == ""
+    assert service.callsign == "ON3RT"
+    assert service.operator_name == "Jean Dupont"
+    assert service.locator == "JO20EU"
+
+
+def test_save_then_reload_round_trips_license_class(tmp_path):
+    path = tmp_path / "station.json"
+
+    service = StationService(config_path=path)
+    service.license_class = "ON3"
+    service.callsign = "ON3RT"
+    service.save()
+
+    reloaded = StationService(config_path=path)
+
+    assert reloaded.license_class == "ON3"
+    assert reloaded.callsign == "ON3RT"
+
+
+def test_info_includes_license_class(tmp_path):
+    service = StationService(config_path=tmp_path / "station.json")
+    service.license_class = "ON3"
+
+    assert service.info()["license_class"] == "ON3"

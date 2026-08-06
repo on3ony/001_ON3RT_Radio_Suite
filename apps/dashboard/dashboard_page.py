@@ -169,7 +169,7 @@ class DashboardPage(QWidget):
         grid.addWidget(self._placeholder("🎙 WSJT-X", "WSJT-X non connecté", "#ffb454"), 1, 2)
 
         grid.addWidget(WeatherPanel(self.live_service), 2, 0)
-        grid.addWidget(BandActivityPanel(self.live_service), 2, 1)
+        grid.addWidget(BandActivityPanel(self.station_service, live_service=self.live_service), 2, 1)
         grid.addWidget(self._placeholder("💬 MESSAGES"), 2, 2)
 
         grid.setColumnStretch(0, 1)

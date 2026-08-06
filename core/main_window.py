@@ -170,9 +170,8 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
 
         self.dashboard_page = DashboardPage(
-            dxcluster_service=self.application.dxcluster_service,
-            weather_service=self.application.weather_service,
-            propagation_service=self.application.propagation_service,
+            live_service=self.application.live_service,
+            station_service=self.application.station_service,
         )
         self.applications_page = self._build_applications_page()
         self.station_page = StationPage()

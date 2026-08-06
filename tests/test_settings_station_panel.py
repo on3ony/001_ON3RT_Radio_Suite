@@ -32,6 +32,7 @@ def station_service(tmp_path):
     service.antennas = ["Dipole 80m"]
     service.interfaces = {"cat": "COM3"}
     service.timezone = "Europe/Brussels"
+    service.license_class = "ON3"
     return service
 
 
@@ -51,6 +52,7 @@ def test_panel_builds_and_loads_fields_from_service(panel, station_service):
     assert panel.spin_latitude.value() == pytest.approx(50.90)
     assert panel.spin_longitude.value() == pytest.approx(4.42)
     assert panel.spin_altitude.value() == 55
+    assert panel.combo_license.currentData() == "ON3"
 
 
 def test_panel_handles_unconfigured_station_without_crashing(qapp, tmp_path):
@@ -63,6 +65,7 @@ def test_panel_handles_unconfigured_station_without_crashing(qapp, tmp_path):
     assert panel.spin_latitude.value() == pytest.approx(0.0)
     assert panel.spin_longitude.value() == pytest.approx(0.0)
     assert panel.spin_altitude.value() == 0
+    assert panel.combo_license.currentData() is not None  # une classe par défaut est sélectionnée, jamais rien
 
     panel.close()
 
@@ -70,9 +73,11 @@ def test_panel_handles_unconfigured_station_without_crashing(qapp, tmp_path):
 def test_editing_fields_without_saving_does_not_touch_the_service(panel, station_service):
     panel.edit_callsign.setText("F4XYZ")
     panel.spin_altitude.setValue(999)
+    panel.combo_license.setCurrentIndex(0)
 
     assert station_service.callsign == "ON3RT"
     assert station_service.altitude == 55
+    assert station_service.license_class == "ON3"
 
 
 def test_clicking_save_writes_edited_values_back_to_the_service(panel, station_service):
@@ -83,6 +88,7 @@ def test_clicking_save_writes_edited_values_back_to_the_service(panel, station_s
     panel.spin_latitude.setValue(48.85)
     panel.spin_longitude.setValue(2.35)
     panel.spin_altitude.setValue(35)
+    panel.combo_license.setCurrentIndex(0)  # HAREC (premier de la liste, différent du "ON3" initial)
 
     panel.btn_save.click()
 
@@ -93,6 +99,7 @@ def test_clicking_save_writes_edited_values_back_to_the_service(panel, station_s
     assert station_service.latitude == pytest.approx(48.85)
     assert station_service.longitude == pytest.approx(2.35)
     assert station_service.altitude == 35
+    assert station_service.license_class == "HAREC"
 
 
 def test_clicking_save_persists_to_disk(panel, station_service):
@@ -101,6 +108,44 @@ def test_clicking_save_persists_to_disk(panel, station_service):
 
     reloaded = StationService(config_path=station_service._path)
     assert reloaded.callsign == "F4XYZ"
+
+
+def test_clicking_save_persists_license_class_to_disk(panel, station_service):
+    panel.combo_license.setCurrentIndex(0)  # HAREC
+    panel.btn_save.click()
+
+    reloaded = StationService(config_path=station_service._path)
+    assert reloaded.license_class == "HAREC"
+
+
+def test_combo_license_is_populated_from_the_registry_not_hardcoded(panel):
+    """
+    Non-régression architecturale : la liste déroulante doit refléter
+    exactement license_privileges.available_license_classes(), jamais
+    une liste dupliquée en dur dans le panneau.
+    """
+    from libraries.radio.license_privileges import available_license_classes
+
+    expected_ids = [class_id for class_id, _label in available_license_classes()]
+    actual_ids = [panel.combo_license.itemData(i) for i in range(panel.combo_license.count())]
+
+    assert actual_ids == expected_ids
+
+
+def test_panel_module_never_imports_privilege_logic():
+    """
+    Non-régression demandée explicitement : ce panneau ne doit
+    connaître aucune règle de privilège (quelles bandes une classe
+    autorise) -- seulement la liste des classes disponibles.
+    """
+    import inspect
+
+    import apps.settings.panels.station_panel as module
+
+    source = inspect.getsource(module)
+
+    assert "allowed_bands" not in source
+    assert "LICENSE_CLASSES" not in source
 
 
 def test_clicking_save_does_not_affect_fields_outside_this_panels_scope(panel, station_service):

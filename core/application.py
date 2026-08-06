@@ -22,6 +22,13 @@ from apps.cat_server.ptt_guard import PTTGuard
 from apps.cat_server.radio_service import RadioService
 from apps.cat_server.transmission_service import TransmissionService
 from apps.contest_assistant.message_service import ContestMessageService
+from apps.dashboard.data_sources.band_activity_source import BandActivityLiveDataSource
+from apps.dashboard.data_sources.dxcluster_source import DXClusterLiveDataSource
+from apps.dashboard.data_sources.local_file_source import LocalFileLiveDataSource
+from apps.dashboard.data_sources.logbook_source import LogbookLiveDataSource
+from apps.dashboard.data_sources.propagation_source import PropagationLiveDataSource
+from apps.dashboard.data_sources.weather_source import WeatherLiveDataSource
+from apps.dashboard.live_service import LiveService
 from apps.frequency_bank.frequency_service import FrequencyService
 from apps.settings.settings_service import SettingsService
 from core.module_manager import ModuleManager
@@ -83,6 +90,31 @@ class Application:
         # Démarrage sans condition, comme weather_service.
         self.propagation_service = PropagationService()
         self.propagation_service.start()
+
+        # Service partagé LiveService (Dashboard / futur ON3RT Live) :
+        # agrège CAT (fichier-pont), Logbook, DX Cluster, activité par
+        # bande, météo et propagation en un seul état diffusé via
+        # state_changed. Remonté ici depuis DashboardPage, qui le
+        # construisait auparavant en privé (source list minimale,
+        # CAT+Logbook seulement), pour que dxcluster_service/
+        # weather_service/propagation_service ci-dessus -- déjà
+        # partagés par le reste de la suite -- alimentent aussi le
+        # Dashboard sans ouvrir de deuxième connexion à chacun.
+        #
+        # BandActivityLiveDataSource partage dxcluster_service avec
+        # DXClusterLiveDataSource juste au-dessus (même instance, même
+        # signal spot_received) : aucune connexion DX Cluster
+        # supplémentaire n'est ouverte pour alimenter la tuile
+        # "Activité par bande" (chantier dédié, 2026-08-05).
+        live_sources = [
+            LocalFileLiveDataSource(),
+            LogbookLiveDataSource(),
+            DXClusterLiveDataSource(self.dxcluster_service),
+            BandActivityLiveDataSource(self.dxcluster_service),
+            WeatherLiveDataSource(self.weather_service),
+            PropagationLiveDataSource(self.propagation_service),
+        ]
+        self.live_service = LiveService(source=live_sources)
 
         # Service partagé de la Banque de fréquences : base SQLite
         # locale (data/frequency_bank.db), aucune dépendance à

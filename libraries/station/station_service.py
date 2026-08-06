@@ -53,6 +53,7 @@ class StationService:
         self.antennas = []
         self.interfaces = {}
         self.timezone = "UTC"
+        self.license_class = ""
 
         self.load()
 
@@ -87,6 +88,7 @@ class StationService:
         self.antennas = data.get("antennas", self.antennas)
         self.interfaces = data.get("interfaces", self.interfaces)
         self.timezone = data.get("timezone", self.timezone)
+        self.license_class = data.get("license_class", self.license_class)
 
     def save(self):
         """
@@ -123,4 +125,5 @@ class StationService:
             "antennas": list(self.antennas),
             "interfaces": dict(self.interfaces),
             "timezone": self.timezone,
+            "license_class": self.license_class,
         }

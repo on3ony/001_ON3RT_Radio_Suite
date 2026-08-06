@@ -13,17 +13,29 @@ lit ni n'écrit jamais config/station.json directement, et ne crée
 jamais sa propre instance de StationService (reçue en injection,
 comme le reste de la suite).
 
-Seuls les 7 champs identité/position de la station sont exposés ici
-(indicatif, nom de l'opérateur, locator, QTH, latitude, longitude,
-altitude) : antennas/interfaces/timezone existent sur StationService
-mais ne font pas partie du périmètre de ce panneau — ils restent
-inchangés sur l'instance et sont donc réécrits tels quels par
-StationService.save() (aucune perte de donnée).
+Seuls les 8 champs identité/position/licence de la station sont
+exposés ici (indicatif, nom de l'opérateur, locator, QTH, latitude,
+longitude, altitude, classe de licence) : antennas/interfaces/timezone
+existent sur StationService mais ne font pas partie du périmètre de ce
+panneau — ils restent inchangés sur l'instance et sont donc réécrits
+tels quels par StationService.save() (aucune perte de donnée).
+
+Classe de licence (combo_license) : ce panneau ne connaît AUCUNE règle
+de privilège (quelles bandes une classe autorise, etc.) — il se
+contente de lister les classes disponibles via
+license_privileges.available_license_classes() (chantier "Tuile
+Activité par bande") pour peupler la liste déroulante, et d'écrire
+l'identifiant choisi tel quel dans StationService.license_class.
+Toute logique de privilèges reste exclusivement dans
+libraries/radio/license_privileges.py ; les modules consommateurs (ex.
+BandActivityPanel) lisent StationService.license_class sans jamais
+passer par ce panneau.
 """
 
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
+    QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
@@ -33,6 +45,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from libraries.radio.license_privileges import available_license_classes
 
 
 class StationPanel(QWidget):
@@ -75,6 +89,10 @@ class StationPanel(QWidget):
         self.spin_altitude.setRange(-500, 9000)
         self.spin_altitude.setSuffix(" m")
 
+        self.combo_license = QComboBox()
+        for class_id, label in available_license_classes():
+            self.combo_license.addItem(label, class_id)
+
         form.addRow("Indicatif", self.edit_callsign)
         form.addRow("Nom de l'opérateur", self.edit_operator_name)
         form.addRow("Locator", self.edit_locator)
@@ -82,6 +100,7 @@ class StationPanel(QWidget):
         form.addRow("Latitude", self.spin_latitude)
         form.addRow("Longitude", self.spin_longitude)
         form.addRow("Altitude", self.spin_altitude)
+        form.addRow("Classe de licence", self.combo_license)
 
         self.btn_save = QPushButton("Enregistrer")
         form.addRow(self.btn_save)
@@ -106,6 +125,9 @@ class StationPanel(QWidget):
         self.spin_longitude.setValue(self.station_service.longitude or 0.0)
         self.spin_altitude.setValue(self.station_service.altitude or 0)
 
+        index = self.combo_license.findData(self.station_service.license_class)
+        self.combo_license.setCurrentIndex(index if index >= 0 else 0)
+
     # ------------------------------------------------------------------
     # Champs -> StationService
     # ------------------------------------------------------------------
@@ -119,5 +141,7 @@ class StationPanel(QWidget):
         self.station_service.latitude = self.spin_latitude.value()
         self.station_service.longitude = self.spin_longitude.value()
         self.station_service.altitude = self.spin_altitude.value()
+
+        self.station_service.license_class = self.combo_license.currentData()
 
         self.station_service.save()

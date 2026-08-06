@@ -8,5 +8,6 @@
   "altitude": 0,
   "antennas": [],
   "interfaces": {},
-  "timezone": "UTC"
+  "timezone": "UTC",
+  "license_class": "ON3"
 }
