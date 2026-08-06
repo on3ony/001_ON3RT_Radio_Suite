@@ -41,6 +41,9 @@ class CATController:
     def set_ptt(self, state):
         self.engine.set_ptt(state)
 
+    def set_data_mode(self, enabled):
+        return self.engine.set_data_mode(enabled)
+
     def send_cw_message(self, text):
         self.engine.send_cw_message(text)
 

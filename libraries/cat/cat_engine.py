@@ -11,6 +11,7 @@ from libraries.cat.serial_transport import SerialTransport
 from libraries.cat.civ_protocol import CIVProtocol
 from libraries.cat.parser import CIVParser
 from libraries.cat.cw_message import CWMessageManager
+from libraries.cat.data_mode import DataModeManager
 from libraries.cat.frequency import FrequencyManager
 from libraries.cat.keying_speed import KeyingSpeedManager
 from libraries.cat.mode import ModeManager
@@ -32,6 +33,7 @@ class CATEngine:
         self.frequency = FrequencyManager()
         self.mode = ModeManager()
         self.ptt = PTTManager()
+        self.data_mode = DataModeManager()
         self.vfo = VFOManager()
         self.cw_message = CWMessageManager()
         self.keying_speed = KeyingSpeedManager()
@@ -80,6 +82,24 @@ class CATEngine:
 
     def set_ptt(self, state: bool) -> None:
         self.transact(self.ptt.build_set_command(state))
+
+    def set_data_mode(self, enabled: bool) -> bool:
+        """
+        Active/désactive l'indicateur CI-V "DATA mode" (commande 1A 06,
+        voir libraries/cat/data_mode.py). Contrairement à
+        set_frequency()/set_mode()/set_ptt() ci-dessus (qui n'inspectent
+        jamais la réponse), retourne True/False selon que la radio a
+        répondu ACK (FB) ou NG (FA) -- cette commande est celle où un
+        NG a été observé en conditions réelles (chantier "Correction
+        DATA Mode IC-7300", 2026-08-05 : un octet de filtre invalide
+        était silencieusement traité comme un succès jusqu'à l'appelant,
+        WSJT-X compris). Aucune mise à jour d'état ici, cette
+        responsabilité reste à l'appelant (voir docstring de
+        DataModeManager).
+        """
+
+        response = self.transact(self.data_mode.build_set_command(enabled))
+        return self.civ.is_ack(response)
 
     def send_cw_message(self, text: str) -> None:
         self.transact(self.cw_message.build_send_command(text))

@@ -28,6 +28,14 @@ class RadioStatus:
 
     vfo: str = "A"
 
+    # Contrairement à frequency/mode/ptt ci-dessus, aucun cycle de
+    # sondage ne relit cet état dans l'architecture actuelle de cette
+    # Suite (voir libraries/cat/data_mode.py) : data_mode est donc la
+    # seule donnée de ce dataclass mise à jour de manière optimiste,
+    # uniquement après une commande d'écriture réussie (voir
+    # RadioService.set_data_mode()), jamais rafraîchie par poll().
+    data_mode: bool = False
+
     last_error: str = ""
 
     def reset(self) -> None:
@@ -36,6 +44,7 @@ class RadioStatus:
         self.mode = "---"
         self.ptt = False
         self.vfo = "A"
+        self.data_mode = False
         self.last_error = ""
 
     @property

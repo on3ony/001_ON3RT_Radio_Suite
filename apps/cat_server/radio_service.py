@@ -169,6 +169,10 @@ class RadioService(QObject):
         return self.status.model
 
     @property
+    def data_mode(self):
+        return self.status.data_mode
+
+    @property
     def utc_date(self):
         return self.utc_manager.date()
 
@@ -321,6 +325,56 @@ class RadioService(QObject):
             logger.exception(exc)
             self.error.emit(str(exc))
             return False
+
+    def set_data_mode(self, enabled: bool) -> bool:
+        """
+        Active/désactive l'indicateur CI-V "DATA mode" (commande 1A 06
+        -- voir libraries/cat/data_mode.py). Ne fait rien si la radio
+        n'est pas connectée.
+
+        Différence délibérée avec set_frequency()/set_mode()/set_ptt()
+        ci-dessus : dans l'architecture actuelle de cette Suite, aucune
+        commande de lecture CI-V ni aucun cycle de sondage n'existe
+        pour ce paramètre (voir docstring de DataModeManager) --
+        status.data_mode est donc mis à jour ici même, la seule donnée
+        de RadioStatus dans ce cas. Mise à jour STRICTEMENT après que
+        la transaction a réussi -- pas seulement "aucune exception
+        levée" (contrairement aux autres commandes d'écriture
+        ci-dessus) mais aussi "la radio a répondu ACK, pas NG" :
+        self.controller.set_data_mode() retourne désormais ce
+        booléen (voir CATEngine.set_data_mode(), corrigé suite au
+        chantier "Correction DATA Mode IC-7300" 2026-08-05 -- un NG
+        était auparavant silencieusement traité comme un succès,
+        jusqu'à RigctldAdapter qui répercutait ce faux succès à
+        WSJT-X). Ni avant l'envoi, ni en cas d'échec (exception OU NG),
+        status.data_mode ne bouge : il conserve sa dernière valeur
+        connue, exactement comme last_error/error ci-dessous pour
+        toutes les autres commandes d'écriture.
+        """
+
+        if not self.controller.connected:
+            logger.event("set_data_mode() ignoré : controller.connected == False")
+            return False
+
+        logger.event(f"set_data_mode() appelé : {enabled}")
+
+        try:
+            accepted = self.controller.set_data_mode(enabled)
+        except Exception as exc:
+            self.status.last_error = str(exc)
+            logger.exception(exc)
+            self.error.emit(str(exc))
+            return False
+
+        if not accepted:
+            message = f"set_data_mode({enabled}) rejeté par la radio (NG)"
+            self.status.last_error = message
+            logger.event(message)
+            self.error.emit(message)
+            return False
+
+        self.status.data_mode = enabled
+        return True
 
     def send_cw_message(self, text: str) -> bool:
         """

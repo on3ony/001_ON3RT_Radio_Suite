@@ -8,6 +8,8 @@ from __future__ import annotations
 from libraries.cat.constants import (
     CIV_PREAMBLE,
     CIV_EOM,
+    CIV_ACK,
+    CIV_NG,
     CONTROLLER_ADDRESS,
     IC7300_ADDRESS,
 )
@@ -44,6 +46,18 @@ class CIVProtocol:
             and frame[:2] == CIV_PREAMBLE
             and frame[-1] == CIV_EOM
         )
+
+    @staticmethod
+    def is_ack(response: bytes) -> bool:
+        """True si `response` est une trame d'accusé de réception positif (FB) -- commande d'écriture acceptée par la radio (trame "FE FE <to> <from> FB FD")."""
+
+        return len(response) >= 5 and response[4] == CIV_ACK
+
+    @staticmethod
+    def is_ng(response: bytes) -> bool:
+        """True si `response` est une trame de rejet (FA, "NG") -- commande d'écriture refusée par la radio (trame "FE FE <to> <from> FA FD")."""
+
+        return len(response) >= 5 and response[4] == CIV_NG
 
 
 if __name__ == "__main__":
