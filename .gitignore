@@ -52,6 +52,9 @@ data/voice_cache/
 data/piper_voices/
 config/qrz.json
 
+# Pont ON3RT Live : état régénéré en continu à l'exécution, jamais figé
+001_ON3RT_live/data/live.json
+
 # Temporary packages
 Logbook_Fix_Package/
 ON3RT_Logbook_Update_001/
