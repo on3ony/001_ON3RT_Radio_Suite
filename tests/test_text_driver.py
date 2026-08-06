@@ -165,11 +165,19 @@ def test_on_progress_is_called_once_per_character(driver, recorder):
     assert recorder.progress_calls == [0, 1, 2]
 
 
-def test_empty_text_finishes_without_touching_the_backend(driver, recorder, backend):
+def test_empty_text_finishes_without_calling_send_text_but_still_releases_the_backend(driver, recorder, backend):
+    """
+    send_text() n'est jamais appelé pour un texte vide (aucun morceau à
+    envoyer) -- mais stop_sending() l'est quand même, mêmes garanties de
+    relâchement qu'un texte normal (voir docstring du module, correctif
+    du 2026-08-02).
+    """
+
     _start(driver, recorder, "")
     _pump_until(lambda: recorder.finished_calls > 0)
 
     assert backend.sent_chunks == []
+    assert backend.stop_sending_calls == 1
     assert recorder.finished_calls == 1
 
 
@@ -266,6 +274,83 @@ def test_backend_exception_during_send_text_calls_on_error(qapp, recorder):
 
     assert recorder.error_calls == ["radio déconnectée"]
     assert recorder.finished_calls == 0
+
+
+# ------------------------------------------------------------------
+# Correctif du 2026-08-02 : stop_sending() doit être appelé aussi sur
+# une fin NORMALE d'émission, pas seulement sur un arrêt explicite --
+# bug réel trouvé lors de la validation matérielle du chantier CW
+# Decode (CIVTextKeyerBackend laissait le PTT actif après un envoi
+# réussi, "PTT déjà activé" au message suivant moins de 30s après).
+# ------------------------------------------------------------------
+
+def test_stop_sending_is_called_on_a_normal_finish(driver, recorder, backend):
+    _start(driver, recorder, "CQ")
+    _pump_until(lambda: recorder.finished_calls > 0)
+
+    assert backend.stop_sending_calls == 1
+
+
+def test_stop_sending_is_called_exactly_once_even_for_a_multi_chunk_message(qapp, recorder):
+    backend = NullTextKeyerBackend(max_chunk_chars=3)
+    driver = TextDriver(backend)
+    _start(driver, recorder, "CQ DX DE ON3RT")
+
+    _pump_until(lambda: recorder.finished_calls > 0)
+
+    assert backend.stop_sending_calls == 1
+
+
+def test_stop_sending_precedes_on_finished_same_order_as_element_driver(qapp):
+    """Même symétrie que ElementDriver._finish_successfully() : relâchement avant notification, jamais l'inverse."""
+
+    call_order: list[str] = []
+
+    class _OrderTrackingBackend(NullTextKeyerBackend):
+        def stop_sending(self):
+            call_order.append("stop_sending")
+            super().stop_sending()
+
+    backend = _OrderTrackingBackend()
+    driver = TextDriver(backend)
+    recorder = _CallbackRecorder()
+
+    def _on_finished_tracking():
+        call_order.append("on_finished")
+
+    driver.start(
+        "CQ", 60, None, "test",
+        recorder.on_started, recorder.on_progress, _on_finished_tracking, recorder.on_error,
+    )
+    _pump_until(lambda: "on_finished" in call_order)
+
+    assert call_order == ["stop_sending", "on_finished"]
+
+
+def test_a_second_send_shortly_after_a_normal_finish_succeeds(qapp, recorder):
+    """
+    Preuve directe du correctif : sans lui, ce second envoi aurait
+    échoué avec une PTTError ("PTT déjà activé") -- ici NullTextKeyerBackend
+    ne simule pas PTTGuard, mais confirme au moins que stop_sending() a
+    bien été appelé avant que TextDriver n'accepte un second start().
+    """
+
+    backend = NullTextKeyerBackend()
+    driver = TextDriver(backend)
+
+    _start(driver, recorder, "CQ")
+    _pump_until(lambda: recorder.finished_calls > 0)
+    assert backend.stop_sending_calls == 1
+
+    second_recorder = _CallbackRecorder()
+    driver.start(
+        "DE ON3RT", 60, None, "test",
+        second_recorder.on_started, second_recorder.on_progress, second_recorder.on_finished, second_recorder.on_error,
+    )
+    _pump_until(lambda: second_recorder.finished_calls > 0)
+
+    assert backend.stop_sending_calls == 2
+    assert backend.sent_chunks == ["CQ", "DE ON3RT"]
 
 
 # ------------------------------------------------------------------

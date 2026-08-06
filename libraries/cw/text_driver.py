@@ -47,6 +47,19 @@ texte brut quoi qu'il arrive).
 Aucune journalisation ici (même contrainte que ElementDriver, contrat
 CWDriver) : stop() absorbe silencieusement un échec de
 backend.stop_sending(), jamais journalisé.
+
+backend.stop_sending() est appelé aussi bien sur un arrêt explicite
+(stop()) que sur une fin NORMALE d'émission (bug réel trouvé lors de la
+validation matérielle du chantier CW Decode, 2026-08-02, avec
+CIVTextKeyerBackend) : la ressource acquise par le backend au moment de
+send_text() (le PTT, pour CIVTextKeyerBackend) n'a auparavant jamais été
+relâchée après une fin normale -- seul un stop() explicite le faisait.
+Un second envoi consécutif, même normal (ex. deux macros envoyées à
+quelques secondes d'intervalle), échouait alors avec "PTT déjà activé",
+le seul filet de sécurité restant étant la minuterie de secours de
+PTTGuard (30 secondes). Même symétrie que ElementDriver._finish_successfully()
+(_safe_key_up() avant on_finished()) : le relâchement précède toujours
+la notification de fin, jamais l'inverse.
 """
 
 from __future__ import annotations
@@ -183,6 +196,7 @@ class TextDriver:
                 self._on_progress(payload)
             else:  # "finish"
                 self._event_index = len(self._events)
+                self._safe_stop_sending()
                 self._on_finished()
                 return
 
