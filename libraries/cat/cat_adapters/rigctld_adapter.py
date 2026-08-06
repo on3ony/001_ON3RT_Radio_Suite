@@ -208,6 +208,130 @@ Description :
     entier, pas résolu ici ; une correction demanderait de revoir le
     motif de connexion des signaux (ex. sender() plutôt qu'une lambda
     capturant le socket), hors périmètre de cette étape.
+
+    Neuvième étape (2026-08-04) : "M <mode> <largeur>" (set_mode) est la
+    deuxième commande d'écriture (après "F"), et la seule à nécessiter
+    une traduction avant d'atteindre cat_sharing_service -- chantier
+    DATA mode complet (libraries/cat/data_mode.py,
+    CATEngine.set_data_mode(), CATController.set_data_mode(),
+    RadioService.set_data_mode()/data_mode, CatSharingService.
+    set_data_mode()/get_data_mode(), toutes les étapes précédentes déjà
+    validées). Capture réelle du 2026-08-04 (logs/cat_server.log) :
+    WSJT-X, DATA/USB-D sélectionné, envoie exactement "M PKTUSB -1",
+    suivi immédiatement de "T 0" puis "q" (test CAT ponctuel, pas de
+    "m" observée dans la même session pour confirmer la relecture réelle
+    -- validation matérielle complète nécessaire après cette étape).
+    Réponse générique précédente ("0\\n") provoquait "Protocol error /
+    while setting current VFO mode" côté WSJT-X, exactement comme pour
+    "F" avant sa correction (même cause : absence du préfixe "RPRT ").
+
+    Format vérifié directement dans netrigctl_set_mode()/
+    netrigctl_get_mode() (dépôt Hamlib/Hamlib, rigs/dummy/netrigctl.c) :
+    client envoie "M<vfo> <mode> <largeur>\\n" (aucun préfixe VFO observé
+    dans la capture réelle, comme pour "F"/"f"/"t") et attend une seule
+    ligne "RPRT <code>". Codes de retour et validation de l'argument
+    largeur vérifiés dans le serveur de référence Hamlib
+    (tests/rigctl_parse.c, declare_proto_rig(set_mode)) : la largeur est
+    lue via sscanf("%ld", ...) AVANT tout appel à rig_set_mode() --
+    argument non numérique -> "RPRT -1" (RIG_EINVAL), sans jamais
+    toucher cat_sharing_service, exactement le même principe que pour
+    l'argument de "F". La valeur numérique elle-même n'est ensuite
+    jamais utilisée : aucune notion de largeur de bande n'existe dans le
+    chemin de données de la Suite (même constat que pour "m", sixième
+    étape) -- seule sa validité syntaxique est vérifiée.
+
+    Traduction "PKTxxx" -> mode de base + DATA : vérifiée directement
+    dans le code source réel de icom_set_mode() (dépôt Hamlib/Hamlib,
+    rigs/icom/icom.c), pas supposée. Point capital confirmé par lecture
+    intégrale de la fonction : la transaction CI-V DATA (C_CTL_MEM=0x1A,
+    S_MEM_DATA_MODE=0x06) est envoyée à CHAQUE changement de mode, pas
+    seulement pour les modes PKT* -- "datamode[0] = is_data_mode ? 0x01
+    : 0x00" est calculé pour tout mode, y compris les modes non-DATA
+    (0x00 explicite). Un "M USB -1" reçu après un "M PKTUSB -1"
+    désactive donc réellement DATA, exactement comme le ferait un vrai
+    IC-7300 -- ce comportement est donc reproduit ici : set_data_mode()
+    est appelée après CHAQUE "M" réussi, avec True pour les 4 modes
+    PKTUSB/PKTLSB/PKTAM/PKTFM (traduits respectivement vers USB/LSB/AM/
+    FM, seuls modes PKT* gérés par icom_set_mode()) et False pour tout
+    autre mode, jamais seulement lorsque l'état DATA change réellement
+    (icom_set_mode() ne compare jamais l'ancien et le nouvel état DATA
+    non plus, seulement mode != current_mode).
+
+    Ordre des deux appels -- mode de base d'abord, puis DATA -- reproduit
+    fidèlement l'ordre réel de icom_set_mode() (le bloc DATA n'est
+    atteint que "if (retval == RIG_OK && ...)" après le set du mode de
+    base) : si cat_sharing_service.set_mode(mode_de_base) échoue, DATA
+    n'est jamais tenté, "RPRT -6" est renvoyé immédiatement -- même
+    codes RPRT que "F" (RIG_EIO=6 en cas d'échec de
+    cat_sharing_service, quelle qu'en soit la cause réelle, y compris un
+    mode de base non reconnu par ModeManager.MODES : cette couche ne
+    duplique délibérément aucune liste de modes valides, laissée à
+    RadioService/ModeManager, seule source de vérité -- voir aussi
+    architecture study validée pour ce chantier).
+
+    Mise à jour symétrique de "m" (get_mode, sixième étape) : traduction
+    inverse vérifiée dans icom_get_mode() (même fichier icom.c, lecture
+    intégrale) -- le mode PKTxxx n'est reconstruit QUE si le mode de
+    base lu vaut USB/LSB/AM/FM ET si l'indicateur DATA est actif ; si
+    DATA est actif mais que le mode de base est autre chose (ex. CW,
+    scénario où data_mode aurait été laissé à True par un "M PKTUSB -1"
+    puis le mode changé hors rigctld sans jamais repasser par "M"), la
+    traduction est silencieusement ignorée et le mode de base est
+    renvoyé tel quel -- comportement reproduit ici à l'identique, plutôt
+    que de deviner une correspondance PKT pour un mode qui n'en a pas.
+    cat_sharing_service.get_data_mode() (dernière étape du chantier
+    DATA) est interrogée à chaque "m", sans coût matériel (valeur mise
+    en cache côté RadioService, jamais une transaction CI-V, voir
+    docstring de DataModeManager) -- cohérent avec l'appel déjà répété
+    à chaque "m" dans la boucle continue observée en capture réelle.
+
+    Dixième étape (2026-08-04) : "T <ptt>" (set_ptt) -- validation
+    matérielle réelle du chantier DATA (Test PTT WSJT-X, IC-7300 réel),
+    changement de mode PKTUSB confirmé sans erreur, mais nouvelle
+    "Protocol error / while setting PTT on". Capture réelle
+    (logs/cat_server.log, connexion 127.0.0.1:63767) : séquence
+    "m" -> "PKTUSB\\n0\\n" (DATA toujours actif, hérité d'un "M" antérieur
+    sur une autre connexion), "t" -> "0\\n" (get_ptt, correctement
+    formaté, aucun préfixe attendu pour cette commande de lecture), puis
+    "T 1" reçoit encore la réponse générique "0\\n" -- cause identique à
+    "F"/"M" avant leur correction : "T" (set_ptt, écriture) n'a jamais
+    été implémentée depuis la quatrième étape (seule "t", lecture,
+    l'avait été) ; retombe dans la branche générique, réponse sans
+    préfixe "RPRT " -> netrigctl_set_ptt() traduit tout retour positif
+    en -RIG_EPROTO (même mécanisme documenté à la septième étape pour
+    "F"), WSJT-X enchaîne "T 0" puis "q" (fermeture immédiate de la
+    session de test), exactement le motif déjà observé pour "F"/"M".
+
+    Format vérifié directement dans netrigctl_set_ptt() (dépôt
+    Hamlib/Hamlib, rigs/dummy/netrigctl.c) : client envoie
+    "T<vfo> <ptt>\\n" (aucun préfixe VFO observé en capture réelle,
+    comme pour "F"/"M"/"f"/"t") avec <ptt> un entier décimal, valeur
+    passée telle quelle depuis ptt_t (aucune notion de largeur/passband
+    ici, contrairement à "M"). Validation et codes RPRT vérifiés dans le
+    serveur de référence Hamlib (tests/rigctl_parse.c,
+    declare_proto_rig(set_ptt)) : l'argument est lu par
+    sscanf(arg1, "%d", &scr) -- non numérique -> "RPRT -1" (RIG_EINVAL),
+    sans jamais toucher cat_sharing_service (même principe que pour la
+    largeur de "M" et la fréquence de "F") ; la valeur entière obtenue
+    est ensuite validée contre un switch() explicite -- seules
+    RIG_PTT_OFF=0, RIG_PTT_ON=1, RIG_PTT_ON_MIC=2 et RIG_PTT_ON_DATA=3
+    sont acceptées, toute autre valeur (y compris négative) retombe
+    dans le "default" -> "RPRT -1" également, avant tout appel à
+    rig_set_ptt().
+
+    Traduction vers CatSharingService.set_ptt(bool) : aucune notion de
+    source PTT (micro/data, distincte du PTT direct) n'existe nulle
+    part dans le chemin de données réel de la Suite -- PTTManager
+    (libraries/cat/ptt.py) et CatSharingService.set_ptt() n'acceptent
+    qu'un booléen. Les 3 valeurs "actives" du protocole (1, 2, 3) sont
+    donc toutes traduites vers True, seule 0 vers False -- même
+    principe de collapse Hamlib-spécifique -> Suite déjà appliqué pour
+    la traduction des modes PKTxxx à la neuvième étape (traduction
+    strictement locale à cette couche, jamais propagée plus bas).
+    Valeur hors {0,1,2,3} (ou non numérique) -> "RPRT -1", sans jamais
+    appeler cat_sharing_service.set_ptt() -- même discipline que pour
+    "F"/"M". Échec de cat_sharing_service.set_ptt() (RadioService non
+    connectée ou exception CI-V) -> "RPRT -6" ; succès -> "RPRT 0".
 =========================================================
 """
 
@@ -259,8 +383,8 @@ _VFO_REPLY = b"VFOA\n"
 # la Suite (voir docstring du module, sixième étape).
 _MODE_PASSBAND_NORMAL = 0
 
-# Codes RPRT (protocole rigctld) pour "F" (set_freq) -- seule commande
-# d'écriture à ce stade. Format "RPRT <code>\n" vérifié dans
+# Codes RPRT (protocole rigctld) pour "F"/"M" (set_freq/set_mode) --
+# commandes d'écriture. Format "RPRT <code>\n" vérifié dans
 # netrigctl_transaction() (rigs/dummy/netrigctl.c) et NETRIGCTL_RET
 # (include/hamlib/rig.h) : une réponse qui ne commence pas par
 # "RPRT " n'est pas reconnue comme un code de retour, voir docstring
@@ -270,6 +394,43 @@ _MODE_PASSBAND_NORMAL = 0
 _RPRT_SUCCESS = b"RPRT 0\n"
 _RPRT_INVALID_PARAM = b"RPRT -1\n"
 _RPRT_IO_ERROR = b"RPRT -6\n"
+
+# Traduction "PKTxxx" -> mode de base, pour "M" (set_mode). Les 4 seuls
+# modes PKT* traduits par icom_set_mode() (dépôt Hamlib/Hamlib,
+# rigs/icom/icom.c, switch(mode) vérifié par lecture intégrale de la
+# fonction, voir docstring du module, neuvième étape) -- tout autre
+# jeton de mode (USB, LSB, AM, FM, CW, RTTY, CW-R, RTTY-R, DV, ou
+# inconnu) est transmis tel quel à cat_sharing_service.set_mode(),
+# jamais traduit ni validé localement (aucune liste de modes valides
+# dupliquée ici, voir docstring du module).
+_PKT_MODE_TO_BASE_MODE = {
+    "PKTUSB": "USB",
+    "PKTLSB": "LSB",
+    "PKTAM": "AM",
+    "PKTFM": "FM",
+}
+
+# Traduction inverse, pour "m" (get_mode) : reconstruit "PKTxxx" à
+# partir du mode de base UNIQUEMENT lorsque get_data_mode() est actif
+# ET que le mode de base courant fait partie des 4 clés ci-dessus --
+# reproduit fidèlement icom_get_mode() (même fichier icom.c), qui
+# ignore silencieusement la reconstruction PKT pour tout autre mode de
+# base (ex. CW), même si l'indicateur DATA est resté actif. Un simple
+# dict.get(mode, mode) suffit : absence de clé -> mode de base renvoyé
+# inchangé, comportement identique.
+_BASE_MODE_TO_PKT_MODE = {base: pkt for pkt, base in _PKT_MODE_TO_BASE_MODE.items()}
+
+# Valeurs ptt_t acceptées par "T" (set_ptt), vérifiées dans le serveur
+# de référence Hamlib (tests/rigctl_parse.c, declare_proto_rig(set_ptt),
+# switch(ptt) explicite) : RIG_PTT_OFF=0, RIG_PTT_ON=1,
+# RIG_PTT_ON_MIC=2, RIG_PTT_ON_DATA=3 -- toute autre valeur entière
+# (y compris négative) est rejetée par le serveur de référence
+# lui-même ("RPRT -1"), jamais seulement par cette couche. Traduction
+# vers le booléen accepté par cat_sharing_service.set_ptt() : aucune
+# distinction micro/data n'existe dans le chemin de données de la
+# Suite (voir docstring du module, dixième étape) -- les 3 valeurs
+# "actives" (1, 2, 3) valent toutes True, seule 0 vaut False.
+_VALID_PTT_VALUES = {0, 1, 2, 3}
 
 # Réponse rigctld conforme pour \dump_state -- format vérifié dans le
 # code source réel de netrigctl_open() (Hamlib/Hamlib,
@@ -323,13 +484,20 @@ class RigctldAdapter(CatAdapter):
     """
     Voir docstring du module -- mode diagnostic : journalise chaque
     commande reçue. Seules exceptions, depuis les troisième/quatrième/
-    sixième/septième étapes : "f" (get_freq), "t" (get_ptt), "m"
-    (get_mode) et "F" (set_freq) interrogent réellement
-    cat_sharing_service -- toute autre commande ne pilote jamais
-    RadioService/CatSharingService. "v" (get_vfo, cinquième étape)
-    reçoit une réponse statique ("VFOA"), sans jamais toucher
-    cat_sharing_service non plus. "F" est la seule à écrire réellement
-    (set_frequency_hz()), toutes les autres ne font que lire.
+    sixième/septième/neuvième/dixième étapes : "f" (get_freq), "t"
+    (get_ptt), "m" (get_mode), "F" (set_freq), "M" (set_mode) et "T"
+    (set_ptt) interrogent réellement cat_sharing_service -- toute autre
+    commande ne pilote jamais RadioService/CatSharingService. "v"
+    (get_vfo, cinquième étape) reçoit une réponse statique ("VFOA"),
+    sans jamais toucher cat_sharing_service non plus. "F", "M" et "T"
+    sont les seules à écrire réellement (set_frequency_hz(),
+    set_mode()/set_data_mode(), set_ptt()), toutes les autres ne font
+    que lire. "M" traduit les modes "PKTxxx" en mode de base +
+    activation DATA (voir _PKT_MODE_TO_BASE_MODE et docstring du
+    module, neuvième étape) ; "m" applique la traduction inverse via
+    get_data_mode(). "T" traduit les 4 valeurs ptt_t Hamlib (0/1/2/3)
+    en booléen (voir _VALID_PTT_VALUES et docstring du module, dixième
+    étape).
     """
 
     def __init__(self, cat_sharing_service, host=DEFAULT_HOST, port=DEFAULT_PORT, parent=None):
@@ -337,8 +505,9 @@ class RigctldAdapter(CatAdapter):
 
         # Reçu par injection (contrat CatAdapter) -- partagé entre
         # toutes les connexions actives, interrogé uniquement pour "f"
-        # (get_freq), "t" (get_ptt), "m" (get_mode) et "F" (set_freq,
-        # seule écriture à ce stade), voir docstring du module.
+        # (get_freq), "t" (get_ptt), "m" (get_mode), "F" (set_freq),
+        # "M" (set_mode/set_data_mode) et "T" (set_ptt), voir docstring
+        # du module.
         self._cat_sharing_service = cat_sharing_service
 
         self._host = host
@@ -430,7 +599,10 @@ class RigctldAdapter(CatAdapter):
         elif decoded == "v":
             reply = _VFO_REPLY
         elif decoded == "m":
-            reply = f"{self._cat_sharing_service.get_mode()}\n{_MODE_PASSBAND_NORMAL}\n".encode()
+            mode = self._cat_sharing_service.get_mode()
+            if self._cat_sharing_service.get_data_mode():
+                mode = _BASE_MODE_TO_PKT_MODE.get(mode, mode)
+            reply = f"{mode}\n{_MODE_PASSBAND_NORMAL}\n".encode()
         elif decoded.startswith("F "):
             try:
                 frequency_hz = float(decoded.removeprefix("F "))
@@ -443,6 +615,46 @@ class RigctldAdapter(CatAdapter):
                     reply = _RPRT_SUCCESS
                 else:
                     reply = _RPRT_IO_ERROR
+        elif decoded.startswith("M "):
+            parts = decoded.split()
+            if len(parts) != 3:
+                reply = _RPRT_INVALID_PARAM
+            else:
+                _, mode_token, width_token = parts
+                try:
+                    int(width_token)
+                except ValueError:
+                    reply = _RPRT_INVALID_PARAM
+                else:
+                    if mode_token in _PKT_MODE_TO_BASE_MODE:
+                        base_mode = _PKT_MODE_TO_BASE_MODE[mode_token]
+                        data_enabled = True
+                    else:
+                        base_mode = mode_token
+                        data_enabled = False
+
+                    if not self._cat_sharing_service.set_mode(base_mode):
+                        reply = _RPRT_IO_ERROR
+                    elif not self._cat_sharing_service.set_data_mode(data_enabled):
+                        reply = _RPRT_IO_ERROR
+                    else:
+                        reply = _RPRT_SUCCESS
+        elif decoded.startswith("T "):
+            parts = decoded.split()
+            if len(parts) != 2:
+                reply = _RPRT_INVALID_PARAM
+            else:
+                try:
+                    ptt_value = int(parts[1])
+                except ValueError:
+                    reply = _RPRT_INVALID_PARAM
+                else:
+                    if ptt_value not in _VALID_PTT_VALUES:
+                        reply = _RPRT_INVALID_PARAM
+                    elif self._cat_sharing_service.set_ptt(ptt_value != 0):
+                        reply = _RPRT_SUCCESS
+                    else:
+                        reply = _RPRT_IO_ERROR
         else:
             reply = _DIAGNOSTIC_REPLY
 

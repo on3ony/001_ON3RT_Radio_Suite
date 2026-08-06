@@ -358,8 +358,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         """
-        Ferme proprement la connexion DX Cluster partagée à la fermeture
-        de la fenêtre principale -- jusqu'ici jamais fait nulle part
+        Ferme proprement les services partagés à la fermeture de la
+        fenêtre principale -- jusqu'ici jamais fait nulle part
         (Application.close_all() ne ferme que les fenêtres de modules,
         pas les services partagés). DXClusterService.disconnect() notifie
         explicitement le nœud DXSpider (fermeture TCP propre) au lieu de
@@ -368,7 +368,17 @@ class MainWindow(QMainWindow):
         identifiée lors de l'audit du 2026-08-03 ("Reconnected as <call>
         ... this instance is disconnected" sur toute reconnexion
         ultérieure sous le même indicatif).
+
+        cat_sharing_service.stop_all() (chantier CAT Sharing / rigctld)
+        arrête de la même façon tout adaptateur réseau actif (ex.
+        RigctldAdapter), qu'il y en ait un, plusieurs ou aucun --
+        CatSharingService itère sa propre liste, cette méthode n'a pas à
+        savoir combien il y en a. cat_sharing_service est toujours
+        construit sans condition dans Application.__init__() (voir
+        CatSharingService) : jamais besoin de vérifier son existence
+        ici, même principe que dxcluster_service ci-dessus.
         """
 
         self.application.dxcluster_service.disconnect()
+        self.application.cat_sharing_service.stop_all()
         super().closeEvent(event)

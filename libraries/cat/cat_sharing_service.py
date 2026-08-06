@@ -99,3 +99,9 @@ class CatSharingService(QObject):
 
     def set_ptt(self, state: bool) -> bool:
         return self._radio_service.set_ptt(state)
+
+    def get_data_mode(self) -> bool:
+        return self._radio_service.data_mode
+
+    def set_data_mode(self, enabled: bool) -> bool:
+        return self._radio_service.set_data_mode(enabled)

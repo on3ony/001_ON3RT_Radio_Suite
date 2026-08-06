@@ -35,15 +35,17 @@ class _FakeStatus:
 
 
 class _FakeRadioService:
-    def __init__(self, connected=False, frequency=None, mode=None, ptt=False):
+    def __init__(self, connected=False, frequency=None, mode=None, ptt=False, data_mode=False):
         self.connected = connected
         self.frequency = frequency
         self.mode = mode
         self.status = _FakeStatus(ptt=ptt)
+        self.data_mode = data_mode
 
         self.set_frequency_calls = []
         self.set_mode_calls = []
         self.set_ptt_calls = []
+        self.set_data_mode_calls = []
 
         self.connect_calls = 0
         self.disconnect_calls = 0
@@ -51,6 +53,7 @@ class _FakeRadioService:
         self._set_frequency_result = True
         self._set_mode_result = True
         self._set_ptt_result = True
+        self._set_data_mode_result = True
 
     def connect(self):
         self.connect_calls += 1
@@ -69,6 +72,10 @@ class _FakeRadioService:
     def set_ptt(self, state):
         self.set_ptt_calls.append(state)
         return self._set_ptt_result
+
+    def set_data_mode(self, enabled):
+        self.set_data_mode_calls.append(enabled)
+        return self._set_data_mode_result
 
 
 class _RecordingAdapter:
@@ -145,6 +152,30 @@ def test_set_ptt_delegates_and_returns_the_result(qapp):
     assert radio_service.set_ptt_calls == [True]
 
 
+def test_get_data_mode_delegates_to_radio_service(qapp):
+    radio_service = _FakeRadioService(data_mode=True)
+    service = CatSharingService(radio_service)
+
+    assert service.get_data_mode() is True
+
+
+def test_set_data_mode_delegates_and_returns_the_result(qapp):
+    radio_service = _FakeRadioService()
+    service = CatSharingService(radio_service)
+
+    assert service.set_data_mode(True) is True
+    assert radio_service.set_data_mode_calls == [True]
+
+
+def test_set_data_mode_propagates_a_failure_result(qapp):
+    radio_service = _FakeRadioService()
+    radio_service._set_data_mode_result = False
+    service = CatSharingService(radio_service)
+
+    assert service.set_data_mode(True) is False
+    assert radio_service.set_data_mode_calls == [True]
+
+
 def test_never_touches_radio_service_connection_lifecycle(qapp):
     """
     CatSharingService ne doit jamais se comporter comme un second
@@ -163,6 +194,8 @@ def test_never_touches_radio_service_connection_lifecycle(qapp):
     service.set_mode("USB")
     service.get_ptt()
     service.set_ptt(False)
+    service.get_data_mode()
+    service.set_data_mode(False)
 
     assert radio_service.connect_calls == 0
     assert radio_service.disconnect_calls == 0

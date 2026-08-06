@@ -50,6 +50,7 @@ _DEFAULT_GRAYLINE_LINE_OPACITY = 220  # idem
 _DEFAULT_GRAYLINE_LINE_WIDTH_PX = 1.6  # idem
 _DEFAULT_GRAYLINE_NIGHT_FILL_COLOR_RGB = [5, 10, 25]  # idem
 _DEFAULT_GRAYLINE_NIGHT_FILL_OPACITY = 110  # idem
+_DEFAULT_CAT_SHARING_PORT = 4532  # libraries/cat/cat_adapters/rigctld_adapter.py::DEFAULT_PORT (port rigctld conventionnel Hamlib)
 
 
 class SettingsService:
@@ -123,6 +124,18 @@ class SettingsService:
             },
         }
 
+        # Chantier CAT Sharing / rigctld (libraries/cat/cat_sharing_service.py,
+        # libraries/cat/cat_adapters/rigctld_adapter.py) : partage du CAT
+        # avec des logiciels tiers (WSJT-X en "Hamlib NET rigctl" pour
+        # commencer, d'autres protocoles/adaptateurs pouvant s'ajouter
+        # plus tard sans jamais toucher cette section). enabled=False par
+        # défaut -- aucun port réseau ouvert tant que l'utilisateur ne
+        # l'active pas explicitement depuis cet écran.
+        self.cat_sharing = {
+            "enabled": False,
+            "port": _DEFAULT_CAT_SHARING_PORT,
+        }
+
         self.load()
 
     # ---------------------------------------------------------
@@ -155,6 +168,7 @@ class SettingsService:
         self._merge_section(data, "services")
         self._merge_section(data, "cw")
         self._merge_section(data, "map")
+        self._merge_section(data, "cat_sharing")
 
     def _merge_section(self, data: dict, section_name: str) -> None:
         """Fusionne data[section_name] dans self.<section_name>, clé par clé."""
@@ -199,4 +213,5 @@ class SettingsService:
             "services": dict(self.services),
             "cw": dict(self.cw),
             "map": dict(self.map),
+            "cat_sharing": dict(self.cat_sharing),
         }

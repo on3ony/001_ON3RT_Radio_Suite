@@ -44,5 +44,9 @@
       "night_fill_color_rgb": [5, 10, 25],
       "night_fill_opacity": 110
     }
+  },
+  "cat_sharing": {
+    "enabled": true,
+    "port": 4532
   }
 }

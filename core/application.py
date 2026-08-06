@@ -33,6 +33,8 @@ from apps.frequency_bank.frequency_service import FrequencyService
 from apps.settings.settings_service import SettingsService
 from core.module_manager import ModuleManager
 from libraries.audio.audio_output_service import AudioOutputService
+from libraries.cat.cat_adapters.rigctld_adapter import RigctldAdapter
+from libraries.cat.cat_sharing_service import CatSharingService
 from libraries.cw.cw_service import CWService
 from libraries.cw.element_driver import ElementDriver
 from libraries.cw.text_driver import TextDriver
@@ -55,6 +57,18 @@ class Application:
         self.author = "ON3RT"
 
         self.radio_service = self._start_radio_service()
+
+        # Service partagé CatSharingService (chantier CAT Sharing /
+        # rigctld, libraries/cat/cat_sharing_service.py) : façade
+        # générique + registre d'adaptateurs autour de radio_service,
+        # même principe que ptt_guard plus bas -- réutilise l'instance
+        # déjà partagée, jamais un second propriétaire du port série.
+        # Construit ici sans condition : c'est la façade elle-même qui
+        # est toujours valide et inconditionnelle -- l'exposition
+        # réseau réelle (un ou plusieurs adaptateurs, ex.
+        # RigctldAdapter) reste conditionnelle, gardée par
+        # settings_service.cat_sharing["enabled"] plus bas.
+        self.cat_sharing_service = CatSharingService(self.radio_service)
 
         # Source de vérité unique pour l'identité et les caractéristiques
         # permanentes de la station (indicatif, locator, QTH...). Ne
@@ -133,6 +147,26 @@ class Application:
         # construction et interrogé à la demande par la fenêtre du
         # module.
         self.settings_service = SettingsService()
+
+        # Démarrage conditionnel de l'exposition réseau CAT (chantier
+        # CAT Sharing / rigctld) : RigctldAdapter (protocole "Hamlib NET
+        # rigctl", voir libraries/cat/cat_adapters/rigctld_adapter.py)
+        # n'est construit et ajouté à cat_sharing_service que si
+        # l'utilisateur l'a activé explicitement -- même principe que
+        # dxcluster_service ci-dessus, jamais de port réseau ouvert sans
+        # ce consentement. cat_sharing_service (construit plus haut,
+        # sans condition) reste le seul détenteur de la liste des
+        # adaptateurs (voir add_adapter()/start_all()) : aucune
+        # référence nommée conservée ici pour ce seul adaptateur, afin
+        # de ne jamais laisser entendre qu'il n'y en aurait qu'un seul
+        # possible -- d'autres protocoles (WebSocket, REST...) pourront
+        # s'ajouter plus tard de la même façon, sans jamais modifier
+        # cette ligne ni CatSharingService.
+        if self.settings_service.cat_sharing["enabled"]:
+            self.cat_sharing_service.add_adapter(
+                RigctldAdapter(self.cat_sharing_service, port=self.settings_service.cat_sharing["port"])
+            )
+            self.cat_sharing_service.start_all()
 
         # Service partagé du module Contest Assistant : modèles de
         # message, langue, nom du concours, numéro progressif et
