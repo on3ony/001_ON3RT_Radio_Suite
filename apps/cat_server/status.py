@@ -28,12 +28,19 @@ class RadioStatus:
 
     vfo: str = "A"
 
-    # Contrairement à frequency/mode/ptt ci-dessus, aucun cycle de
-    # sondage ne relit cet état dans l'architecture actuelle de cette
-    # Suite (voir libraries/cat/data_mode.py) : data_mode est donc la
-    # seule donnée de ce dataclass mise à jour de manière optimiste,
-    # uniquement après une commande d'écriture réussie (voir
-    # RadioService.set_data_mode()), jamais rafraîchie par poll().
+    # smeter_level (0-255, brut) est la donnée de RÉFÉRENCE, destinée
+    # aux futurs widgets graphiques/animés ; smeter (texte, ex. "S9")
+    # n'en est qu'une représentation dérivée pour l'interface actuelle
+    # -- voir CATEngine.read_smeter().
+    smeter_level: int | None = None
+    smeter: str | None = None
+
+    # Contrairement à frequency/mode/ptt/smeter ci-dessus, aucun cycle
+    # de sondage ne relit cet état dans l'architecture actuelle de
+    # cette Suite (voir libraries/cat/data_mode.py) : data_mode est
+    # donc la seule donnée de ce dataclass mise à jour de manière
+    # optimiste, uniquement après une commande d'écriture réussie
+    # (voir RadioService.set_data_mode()), jamais rafraîchie par poll().
     data_mode: bool = False
 
     last_error: str = ""
@@ -44,6 +51,8 @@ class RadioStatus:
         self.mode = "---"
         self.ptt = False
         self.vfo = "A"
+        self.smeter_level = None
+        self.smeter = None
         self.data_mode = False
         self.last_error = ""
 

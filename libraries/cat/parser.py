@@ -36,6 +36,17 @@ class CIVParser:
         elif command == 0x07:
             result["decoded"]["vfo"] = frame[-2]
 
+        elif command == 0x15:
+            # Famille "mètres" (S-mètre, Po mètre, SWR...), toutes sous
+            # la commande 0x15 avec une sous-commande distincte (voir
+            # libraries/cat/smeter.py) -- le parser ne fait qu'extraire
+            # la sous-commande et les octets de donnée bruts, jamais
+            # leur interprétation (propre à chaque manager de mètre,
+            # comme KeyingSpeedManager.decode_wpm() pour 14 0C).
+            if len(frame) >= 6:
+                result["decoded"]["meter_subcommand"] = frame[5]
+                result["decoded"]["meter_data"] = frame[6:-1]
+
         return result
 
     @staticmethod

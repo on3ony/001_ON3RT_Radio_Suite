@@ -83,6 +83,9 @@ class CATLogger:
         else:
             self.info("PTT OFF")
 
+    def smeter(self, level: int, display: str):
+        self.info(f"S-mètre : level={level} ({display})")
+
     def event(self, text: str):
         self.info(text)
 

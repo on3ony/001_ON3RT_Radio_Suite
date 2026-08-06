@@ -16,6 +16,7 @@ from libraries.cat.frequency import FrequencyManager
 from libraries.cat.keying_speed import KeyingSpeedManager
 from libraries.cat.mode import ModeManager
 from libraries.cat.ptt import PTTManager
+from libraries.cat.smeter import SMeterManager
 from libraries.cat.vfo import VFOManager
 from libraries.cat.command_queue import CommandQueue
 
@@ -33,6 +34,7 @@ class CATEngine:
         self.frequency = FrequencyManager()
         self.mode = ModeManager()
         self.ptt = PTTManager()
+        self.smeter = SMeterManager()
         self.data_mode = DataModeManager()
         self.vfo = VFOManager()
         self.cw_message = CWMessageManager()
@@ -82,6 +84,31 @@ class CATEngine:
 
     def set_ptt(self, state: bool) -> None:
         self.transact(self.ptt.build_set_command(state))
+
+    def read_smeter(self):
+        """
+        Retourne (level, display) : level est la donnée de RÉFÉRENCE, un
+        entier brut 0-255 (SMeterManager.decode_level()) destiné aux
+        futurs widgets graphiques/animés ; display en est une simple
+        représentation textuelle dérivée du même level
+        (SMeterManager.level_to_s_display()), utilisée par l'interface
+        actuelle. (None, None) si la réponse est absente/malformée --
+        jamais une valeur inventée (même discipline que read_frequency()/
+        read_mode()).
+        """
+
+        response = self.transact(self.smeter.build_read_command())
+        parsed = self.parser.parse(response)
+        decoded = parsed.get("decoded", {})
+
+        if decoded.get("meter_subcommand") != 0x02:
+            _log.info(f"read_smeter() : RX brut={response.hex(' ').upper() if response else '(vide)'} -> (aucune donnée)")
+            return None, None
+
+        level = self.smeter.decode_level(decoded.get("meter_data", b""))
+        display = self.smeter.level_to_s_display(level)
+        _log.info(f"read_smeter() : RX brut={response.hex(' ').upper() if response else '(vide)'} -> level={level} ({display})")
+        return level, display
 
     def set_data_mode(self, enabled: bool) -> bool:
         """

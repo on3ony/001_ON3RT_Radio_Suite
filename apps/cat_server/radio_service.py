@@ -169,6 +169,14 @@ class RadioService(QObject):
         return self.status.model
 
     @property
+    def smeter(self):
+        return self.status.smeter
+
+    @property
+    def smeter_level(self):
+        return self.status.smeter_level
+
+    @property
     def data_mode(self):
         return self.status.data_mode
 
@@ -193,7 +201,7 @@ class RadioService(QObject):
             logger.event("poll() ignoré : controller.connected == False")
             return
 
-        logger.event("---- poll() : cycle fréquence/mode/PTT ----")
+        logger.event("---- poll() : cycle fréquence/mode/PTT/S-mètre ----")
 
         # ------------------------------------------------
         # Le VFO n'est volontairement PAS interrogé ici.
@@ -221,6 +229,7 @@ class RadioService(QObject):
             f = self.controller.read_frequency()
             m = self.controller.read_mode()
             p = self.controller.read_ptt()
+            smeter_level, smeter_display = self.controller.read_smeter()
 
             if f is not None and f != self.status.frequency:
                 self.status.frequency = f
@@ -237,6 +246,15 @@ class RadioService(QObject):
             if state != self.status.ptt:
                 self.status.ptt = state
                 logger.ptt(state)
+
+            # smeter_level (donnée de référence) pilote la détection de
+            # changement ; smeter (texte) en est purement dérivé, voir
+            # CATEngine.read_smeter() -- les deux évoluent donc toujours
+            # ensemble, un seul test suffit.
+            if smeter_level is not None and smeter_level != self.status.smeter_level:
+                self.status.smeter_level = smeter_level
+                self.status.smeter = smeter_display
+                logger.smeter(smeter_level, smeter_display)
 
             self.status.connected = True
 
@@ -462,6 +480,8 @@ class RadioService(QObject):
             "adif_date": self.adif_date,
             "adif_time": self.adif_time,
             "ptt": self.status.ptt,
+            "smeter": self.status.smeter,
+            "smeter_level": self.status.smeter_level,
         }
 
     def _write_live_state(self):
